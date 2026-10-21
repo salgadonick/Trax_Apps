@@ -220,6 +220,7 @@ export function parseLine(line) {
       case "FLT": return { kind: "flt", data: { i: +p[1], code: +p[2], name: p[3], boot: +p[4], uptime: +p[5],
                                                  vpack: +p[6], detail: +p[7], title: faultTitle(+p[2]), text: faultText(+p[2]) } };
       case "ACK": return { kind: "ack", data: { what: p[1], args: p.slice(2) } };
+      case "LINK": return { kind: "link", data: { bonded: p[1] === "1", hasBond: p[2] === "1", pairing: p[3] === "1" } };
       case "ERR": return { kind: "err", data: { what: p[1], args: p.slice(2), reason: p.slice(1).join(",") } };
     }
   } catch (e) {

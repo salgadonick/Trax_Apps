@@ -3,7 +3,7 @@
 // (bench) view, remote control and the full-screen drive mode. Everything in
 // index.html marked data-dash="gse" belongs to this module.
 //
-// Dashboard contract (see app.js): { id, mount(ctx), render(d), onEvent(evt), onError(err), onLink(on),
+// Dashboard contract (see app.js): { id, mount(ctx), render(d), onEvent(evt), onError(err), onLink(on), onLinkStatus(link, transport),
 // onCfg(key, value), onAdvanced(on), unmount() }. `ctx` gives the shell's
 // helpers: $, send, cfg (live settings), addEvent, badge, isAdvanced(),
 // srcKind() and the protocol module.
@@ -42,8 +42,26 @@ export function onCfg(key, value) {
 // ERR replies to the operator's own actions, shown under the button that
 // caused them. The events list is at the bottom of the page and off-screen on
 // a phone (Bluefy, 2026-10-21: a refused request looked like nothing happened).
+// What this phone's link may do, from the unit's LINK line (Web Bluetooth only:
+// serial/bridge links are bench links and always allowed).
+let link = null;
+const LINK_TEXT = {
+  occupied: "This unit is paired to another phone. To take over: triple-press the tiller power button. The unit will disconnect; connect again, request control and accept the pairing prompt.",
+  unpaired: "This phone is not paired with this unit yet. Triple-press the tiller power button to open pairing (60 s), then request control and accept the pairing prompt.",
+  pairing:  "Pairing window open: request control now and accept the pairing prompt.",
+};
+function linkState() { if (!link || link.bonded) return "ok"; if (link.pairing) return "pairing"; return link.hasBond ? "occupied" : "unpaired"; }
+function renderLinkStatus() {
+  const p = $("remote-link"); if (!p) return;
+  const st = linkState();
+  p.hidden = st === "ok"; p.textContent = LINK_TEXT[st] || "";
+  p.className = "drive-banner" + (st === "occupied" ? " bad" : "");
+}
+export function onLinkStatus(d, transport) { link = transport === "ble" ? d : null; renderLinkStatus(); if (linkState() !== "ok") remoteMsg(""); }
+
 const REMOTE_ERR = {
   not_bonded:  "This phone is not paired with the unit. Triple-press the tiller power button to open pairing (60 s). If the unit drops the connection at that moment, connect again. Then request control, accept the pairing prompt, and request once more.",
+  occupied:    "This unit is paired to another phone. Triple-press the tiller power button to take over; the unit will disconnect. Connect again, request control and accept the pairing prompt.",
   not_run:     "The unit is not running. Start it from the tiller first.",
   not_at_rest: "Release the throttle and direction on the tiller, then request again.",
   busy:        "A request is already in progress.",
@@ -54,7 +72,7 @@ const REMOTE_ERR = {
 function remoteMsg(text) { const m = $("remote-msg"); if (!m) return; m.hidden = !text; m.textContent = text || ""; }
 export function onLink(on) {
   // Link gone: nothing we remember about the session is true any more.
-  if (!on) { stopRc(); srcNow = 0; closeDrive(); remoteMsg(""); }
+  if (!on) { stopRc(); srcNow = 0; closeDrive(); remoteMsg(""); link = null; renderLinkStatus(); }
 }
 export function onError(data) {
   if (data.what === "RC") {
@@ -359,6 +377,8 @@ function wire() {
   $("btn-remote-req").onclick = () => {
     remoteMsg("");
     if (!last) { remoteMsg("Not connected to a unit."); return; }
+    const ls = linkState();
+    if (ls === "occupied" || ls === "unpaired") { remoteMsg(LINK_TEXT[ls]); return; }   // the LINK line already said no: explain, do not fail
     if (last.state !== "RUN") {
       remoteMsg(last.state === "FAULT" ? `The unit is stopped on a fault (${last.faultTitle || "fault"}). Restart it first.`
               : last.estop_l ? "The e-stop is latched at the tiller. Power-cycle the unit."
