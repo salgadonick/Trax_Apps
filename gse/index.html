@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Trax GSE">
+<meta name="theme-color" content="#000000">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>Trax GSE</title>
+<link rel="stylesheet" href="css/app.css">
+<script>
+// Show script errors on the page (phones have no console). Must be a classic
+// script so it runs even when the module below fails to load.
+window.addEventListener("error", function (e) {
+  var b = document.getElementById("jserr"); if (!b) return;
+  b.hidden = false; b.textContent = "Script error: " + (e.message || e) + (e.filename ? " (" + e.filename.split("/").pop() + ":" + e.lineno + ")" : "");
+});
+window.addEventListener("unhandledrejection", function (e) {
+  var b = document.getElementById("jserr"); if (!b) return;
+  b.hidden = false; b.textContent = "Error: " + (e.reason && e.reason.message || e.reason);
+});
+if (!Element.prototype.replaceChildren) Element.prototype.replaceChildren = function () { while (this.firstChild) this.removeChild(this.firstChild); for (var i = 0; i < arguments.length; i++) this.appendChild(arguments[i]); };
+</script>
+</head>
+<body>
+<div id="jserr" class="alert" hidden></div>
+<header class="top">
+  <div class="brand"><span id="unit-name" title="Tap to rename this unit">Trax</span> <span id="unit-id" class="chip unit-chip" hidden></span> <span id="devname" class="muted"></span></div>
+  <div class="conn">
+    <span id="linkdot" class="dot"></span>
+    <button id="btn-bridge" class="btn small">Bridge</button>
+    <button id="btn-ble" class="btn small">Bluetooth</button>
+    <button id="btn-adv" class="btn small ghost" aria-pressed="false">Advanced</button>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- ===== Unit identity (every product) ===== -->
+  <section class="unit-line">
+    <span id="unit-product" class="muted small"></span>
+    <button id="btn-rename" class="btn small ghost" hidden>Rename</button>
+  </section>
+  <div id="unit-twin" class="alert warn small" hidden></div>
+
+  <!-- ===== Unknown machine / unreadable protocol ===== -->
+  <section class="card" data-dash="generic" hidden>
+    <div class="card-h" id="gen-title">Unknown machine</div>
+    <p id="gen-text" class="muted"></p>
+    <div class="console" id="gen-lines"></div>
+  </section>
+
+  <!-- ===== GSE tiller handle: operator view ===== -->
+  <section id="hero" class="hero state-none" data-dash="gse">
+    <div class="hero-state" id="state">—</div>
+    <div class="hero-text" id="state-text">Not connected</div>
+    <div class="hero-sub" id="connect-hint" hidden>Tap <b>Bluetooth</b> and choose your unit. On iPhone open this page in the Bluefy browser; Safari cannot use Bluetooth.</div>
+    <div class="hero-sub" id="state-sub"></div>
+  </section>
+
+  <section id="alert" class="alert" data-dash="gse" hidden>
+    <div class="alert-title" id="alert-title"></div>
+    <div class="alert-text" id="alert-text"></div>
+    <div class="row wrap-row" style="margin-top:8px">
+      <button id="btn-restart" class="btn small" hidden>Restart</button>
+      <button id="btn-powercycle" class="btn small sim" data-s="reset" hidden>Power cycle (simulator)</button>
+    </div>
+  </section>
+
+  <section class="grid" data-dash="gse">
+    <div class="card">
+      <div class="card-h">Battery <span class="muted small" id="batt-type"></span></div>
+      <div class="soc"><span id="soc">—</span><span class="unit">%</span></div>
+      <div class="bar"><div id="socbar" class="bar-fill"></div></div>
+      <div class="row"><span>Pack</span><b id="v36">—</b></div>
+      <div class="units">
+        <div><span>B1</span><b id="b1">—</b><i id="b1bar"></i></div>
+        <div><span>B2</span><b id="b2">—</b><i id="b2bar"></i></div>
+        <div><span>B3</span><b id="b3">—</b><i id="b3bar"></i></div>
+      </div>
+      <div class="row"><span id="i-label">Board current</span><b id="i_board">—</b></div>
+      <div class="row" id="chg-row" hidden><span>Time to full</span><b id="chg-time">—</b></div>
+      <div class="row" id="run-row" hidden><span>Run time left</span><b id="run-time">—</b></div>
+      <div class="row" id="soc-src" hidden><span class="muted small" id="soc-note"></span></div>
+      <div class="badges" id="batt-badges"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-h">Drive</div>
+      <div class="row"><span>Throttle</span><b id="thr">—</b></div>
+      <div class="bar"><div id="thrbar" class="bar-fill accent"></div></div>
+      <div class="row"><span>Direction</span><b id="dir">—</b></div>
+      <div class="row"><span>Speed mode</span><b id="speed">—</b></div>
+      <div class="row"><span>Motor brake</span><b id="mbrake">—</b></div>
+      <div class="row"><span>Trailer brake</span><b id="tb">—</b></div>
+      <div class="row slider-row">
+        <label for="thr-limit">Speed limit <b id="thr-limit-v">—</b></label>
+        <input id="thr-limit" type="range" min="50" max="100" step="5" value="100" aria-label="Speed limit percent">
+      </div>
+      <div class="badges" id="drive-badges"></div>
+    </div>
+  </section>
+
+  <section class="card" id="remote-card" data-dash="gse">
+    <div class="card-h">Remote control <span class="muted small" id="remote-state">local</span></div>
+    <div id="remote-idle">
+      <p class="muted">Take control from the phone. The unit must be running and at rest; after requesting, press the tiller's power button once to confirm you're at the machine.</p>
+      <button id="btn-remote-req" class="btn">Request control</button>
+    </div>
+    <div id="remote-pending" hidden>
+      <p><b>Press the power button on the tiller</b> to confirm. Waiting…</p>
+      <div class="row wrap-row">
+        <button id="btn-remote-cancel" class="btn ghost small">Cancel</button>
+        <button class="btn small sim" data-s="press" hidden>Simulate: tiller button press</button>
+      </div>
+    </div>
+    <div id="remote-armed" hidden>
+      <p><b>Remote control active.</b> The drive screen is open; if it was closed, reopen it.</p>
+      <div class="row wrap-row"><button id="btn-drive-open" class="btn">Open drive screen</button>
+        <button id="btn-remote-rel" class="btn ghost">Release control</button></div>
+    </div>
+    <div id="remote-stopped" hidden class="alert">
+      <div class="alert-title">Remote STOP is latched</div>
+      <div class="alert-text">The unit is holding with the trailer brake on. Open the drive screen to clear the stop, or release control.</div>
+      <div class="row wrap-row" style="margin-top:8px">
+        <button id="btn-remote-open2" class="btn small">Open drive screen</button>
+        <button id="btn-remote-rel3" class="btn small ghost">Release</button>
+      </div>
+    </div>
+    <div id="remote-lost" hidden class="alert warn">
+      <div class="alert-title">Control link interrupted</div>
+      <div class="alert-text" id="remote-lost-text">No commands reached the unit. It has stopped and is holding.</div>
+      <div class="row wrap-row" style="margin-top:8px">
+        <button id="btn-remote-resume" class="btn small">Resume</button>
+        <button id="btn-remote-rel2" class="btn small ghost">Release</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="faults-card">
+    <div class="card-h">Stored faults <button id="btn-faults" class="btn small ghost">Refresh</button>
+      <button id="btn-faults-clr" class="btn small ghost danger">Clear</button></div>
+    <ul id="faults" class="list"><li class="muted">Connect and refresh.</li></ul>
+  </section>
+
+  <!-- ===== Advanced (bench) view ===== -->
+  <div id="advanced" hidden>
+    <details class="card" open>
+      <summary>Connection</summary>
+      <div class="row wrap-row" id="bridge-controls">
+        <select id="ports" aria-label="Serial port"></select>
+        <button id="btn-serial" class="btn small">Open port</button>
+        <button id="btn-ports" class="btn small ghost">Rescan</button>
+        <label class="chk"><input type="checkbox" id="chk-log"> CSV log</label>
+        <span id="logpath" class="muted small"></span>
+      </div>
+      <div class="row wrap-row" id="sim-controls" hidden>
+        <span class="muted">Simulator:</span>
+        <button class="btn small ghost sim" data-s="drive">Drive</button>
+        <button class="btn small ghost sim" data-s="estop">E-stop</button>
+        <button class="btn small ghost sim" data-s="j20fault">Controller fault</button>
+        <button class="btn small ghost sim" data-s="lowbatt">Low battery</button>
+        <button class="btn small ghost sim" data-s="weakbatt">Unevenly charged battery</button>
+        <button class="btn small ghost sim" data-s="failbatt">Weak battery (droop)</button>
+        <button class="btn small ghost sim" data-s="pairing">BLE pairing window</button>
+        <button class="btn small ghost sim" data-s="charging">Charger on/off</button>
+        <button class="btn small ghost sim" data-s="notaps">Taps unconnected</button>
+        <button class="btn small ghost sim" data-s="press">Tiller button press</button>
+        <button class="btn small ghost sim" data-s="local">Local input</button>
+        <button class="btn small ghost sim" data-s="reset">Power cycle</button>
+      </div>
+      <div class="sub-h">Known units <span class="muted small">(remembered on this device)</span></div>
+      <ul id="known-units" class="list"></ul>
+    </details>
+
+    <details class="card" open data-dash="gse">
+      <summary>Live <span class="muted small" id="rate"></span></summary>
+      <canvas id="chart" height="160"></canvas>
+      <div class="legend"><i class="l1"></i>Pack V <i class="l2"></i>Current A <i class="l3"></i>Controller bus V</div>
+    </details>
+
+    <details class="card" data-dash="gse">
+      <summary>Inputs and outputs</summary>
+      <div class="sub-h">Tiller and sensor inputs</div>
+      <div class="chips" id="inputs"></div>
+      <div class="sub-h">Outputs</div>
+      <div class="chips" id="outputs"></div>
+    </details>
+
+    <details class="card" data-dash="gse">
+      <summary>All readings</summary>
+      <div id="fields"></div>
+    </details>
+
+    <details class="card" id="settings-card">
+      <summary>Settings <button id="btn-cfg" class="btn small ghost">Reload from unit</button> <button id="btn-cfg-reset" class="btn small ghost danger">Reset to defaults</button></summary>
+      <div id="cfg"></div>
+    </details>
+
+    <details class="card">
+      <summary>Console</summary>
+      <div class="console" id="console"></div>
+      <form id="cmdform" class="row">
+        <input id="cmd" type="text" autocomplete="off" autocapitalize="characters" placeholder="STATUS, CFGGET, FAULTS, SHUTDOWN, BENCH,ksi,1 …" aria-label="Command">
+        <button class="btn small" type="submit">Send</button>
+      </form>
+    </details>
+  </div>
+
+  <details class="card events" open>
+    <summary>Events</summary>
+    <ul id="events" class="list"></ul>
+  </details>
+</main>
+
+<!-- ===== Full-screen drive mode (remote control armed) ===== -->
+<div id="drive" class="drive" data-dash="gse" hidden>
+  <div class="drive-top">
+    <div class="drive-stat"><span>Charge</span><b id="dv-soc">—</b></div>
+    <div class="drive-stat"><span>Current</span><b id="dv-i">—</b></div>
+    <div class="drive-stat"><span>Limit</span><b id="dv-lim">—</b></div>
+    <div class="drive-stat"><span>Link</span><b id="dv-link">—</b></div>
+  </div>
+  <div id="dv-banner" class="drive-banner" hidden></div>
+  <div class="drive-main">
+    <div id="vstick" class="vstick" role="slider" aria-label="Throttle, drag and hold" aria-valuemin="-100" aria-valuemax="100" aria-valuenow="0">
+      <div class="vstick-track">
+        <div class="vstick-scale"><span>100</span><span>50</span><span class="c">FWD</span><span class="c">REV</span><span>50</span><span>100</span></div>
+        <div class="vstick-center"></div>
+        <div id="vstick-fill" class="vstick-fill"></div>
+        <div id="vstick-knob" class="vstick-knob"><span id="dv-thr">0 %</span><small>HOLD</small></div>
+      </div>
+    </div>
+    <div class="drive-aux">
+      <button class="btn hold aux" data-rc="lift">Lift</button>
+      <button class="btn hold aux" data-rc="lower">Lower</button>
+      <button class="btn hold aux" data-rc="horn">Horn</button>
+      <button id="btn-dv-aux" class="btn ghost aux" hidden>Lock</button>
+    </div>
+  </div>
+  <div class="drive-bottom">
+    <button id="btn-dv-stop" class="btn danger-fill">STOP</button>
+    <button id="btn-dv-resume" class="btn" hidden>Resume</button>
+    <button id="btn-dv-release" class="btn ghost">Release control</button>
+  </div>
+  <!-- Blocking screen: latched remote STOP (two-step clear) or a hard fault / tiller e-stop (power cycle only) -->
+  <div id="dv-block" class="drive-block" hidden>
+    <div class="drive-block-title" id="dv-block-title">STOPPED</div>
+    <div class="drive-block-text" id="dv-block-text"></div>
+    <div class="drive-block-actions">
+      <button id="btn-dv-clear" class="btn">Clear stop</button>
+      <button id="btn-dv-confirm" class="btn danger-fill" hidden>Confirm — resume control</button>
+      <button id="btn-dv-clear-cancel" class="btn ghost" hidden>Keep stopped</button>
+      <button id="btn-dv-block-release" class="btn ghost">Release control</button>
+      <button id="btn-dv-block-close" class="btn ghost" hidden>Close</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

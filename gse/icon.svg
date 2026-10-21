@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180">
+<rect width="180" height="180" fill="#000"/>
+<clipPath id="band"><rect x="0" y="34.0" width="180" height="112.0"/></clipPath>
+<g clip-path="url(#band)" stroke-linecap="butt">
+<line x1="42.9" y1="14.0" x2="90.0" y2="90.0" stroke="rgb(150, 150, 150)" stroke-width="30"/>
+<line x1="90.0" y1="90.0" x2="137.1" y2="166.0" stroke="rgb(227, 146, 47)" stroke-width="30"/>
+<line x1="137.1" y1="14.0" x2="42.9" y2="166.0" stroke="rgb(253, 254, 252)" stroke-width="30"/>
+</g>
+</svg>

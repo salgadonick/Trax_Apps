@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trax Apps</title>
+<meta name="description" content="Web apps for Trax machines. Bluetooth from the browser, nothing to install.">
+<style>
+  :root { --bg: #f6f7f9; --fg: #16181d; --muted: #5d6470; --card: #ffffff; --line: #dfe3e8; --accent: #0b6bcb; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg: #101216; --fg: #e8eaee; --muted: #9aa3ad; --card: #181b21; --line: #2a2f37; --accent: #5aa9ff; }
+  }
+  :root[data-theme="dark"] { --bg: #101216; --fg: #e8eaee; --muted: #9aa3ad; --card: #181b21; --line: #2a2f37; --accent: #5aa9ff; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 640px; margin: 0 auto; padding: 32px 16px 48px; }
+  h1 { font-size: 28px; margin: 0 0 4px; }
+  p.lead { color: var(--muted); margin: 0 0 24px; }
+  a.app { display: block; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; text-decoration: none; color: inherit; margin-bottom: 12px; }
+  a.app:hover { border-color: var(--accent); }
+  a.app strong { display: block; font-size: 18px; color: var(--accent); }
+  a.app span { color: var(--muted); font-size: 14px; }
+  h2 { font-size: 16px; margin: 28px 0 8px; }
+  ul { margin: 0; padding-left: 20px; color: var(--muted); font-size: 14px; }
+  code { font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Trax Apps</h1>
+  <p class="lead">Operator and bench apps for Trax machines. They connect over Bluetooth from the browser; nothing to install.</p>
+
+  <a class="app" href="gse/">
+    <strong>GSE tiller handle</strong>
+    <span>Tugs with the Trax tiller-handle logic board. Recognises any Trax unit from its ID and shows the matching dashboard.</span>
+  </a>
+
+  <h2>Which browser</h2>
+  <ul>
+    <li><b>Android:</b> Chrome.</li>
+    <li><b>iPhone / iPad:</b> Bluefy from the App Store (Safari has no Web Bluetooth).</li>
+    <li><b>Desktop:</b> Chrome or Edge.</li>
+    <li>Add the app to your home screen from the browser menu for a full-screen app with the Trax icon.</li>
+  </ul>
+</main>
+</body>
+</html>
