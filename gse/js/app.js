@@ -48,7 +48,14 @@ const dashKey = (info) => (!info || info === UNKNOWN || !info.protocol) ? "gener
 async function useProduct(info, id) {
   // Show only this dashboard's markup; load its protocol + dashboard modules.
   const key = dashKey(info);
-  document.querySelectorAll("[data-dash]").forEach((el) => { el.hidden = el.dataset.dash !== key; });
+  // Elements of other dashboards are hidden; this dashboard's are shown,
+  // except those that own their own visibility (data-keep-hidden: the drive
+  // overlay, the fault alert). Force-showing them put the phone straight
+  // into the drive screen on load (Bluefy, 2026-10-21).
+  document.querySelectorAll("[data-dash]").forEach((el) => {
+    if (el.dataset.dash !== key) el.hidden = true;
+    else if (!("keepHidden" in el.dataset)) el.hidden = false;
+  });
   const [p, d] = await Promise.all([info.protocol ? info.protocol() : null, info.dashboard()]);
   if (dash && dash !== d) { try { dash.unmount(); } catch (e) {} }
   proto = p; dash = d;

@@ -31,6 +31,7 @@ export function mount(c) {
   ctx = c; $ = c.$; send = c.send; cfg = c.cfg; badge = c.badge;
   if (!mounted) { wire(); mounted = true; }
   setStick(0);
+  closeDrive();                                   // the drive view opens only on arming
   window.__gse = { socEst, cfg, get last() { return last; } };   // debugging hook (read-only use)
 }
 export function unmount() { stopRc(); closeDrive(); }
