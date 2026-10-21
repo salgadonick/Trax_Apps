@@ -236,9 +236,9 @@ function attach(s, label) {
   src = s;
   s.onLine = onLine;
   s.onError = (m) => consoleLine("BLE: " + m, "err");
-  s.onConn = ({ link, kind, name }) => { setLink(link, name || label); if (link) onConnected(s); renderIdentity(); };
+  s.onConn = ({ link, kind, name }) => { setLink(link, name || label); if (dash && dash.onLink) dash.onLink(link); if (link) onConnected(s); renderIdentity(); };
   s.onMeta = (m) => {
-    if (m.type === "conn") { srcKind = m.connected ? m.kind : ""; setLink(m.connected, m.connected ? `${m.kind}: ${m.name}` : "bridge"); $("sim-controls").hidden = m.kind !== "sim"; showSimButtons(); if (m.connected) onConnected(s); renderIdentity(); }
+    if (m.type === "conn") { srcKind = m.connected ? m.kind : ""; setLink(m.connected, m.connected ? `${m.kind}: ${m.name}` : "bridge"); if (dash && dash.onLink) dash.onLink(m.connected); $("sim-controls").hidden = m.kind !== "sim"; showSimButtons(); if (m.connected) onConnected(s); renderIdentity(); }
     if (m.type === "ports") { const sel = $("ports"); sel.replaceChildren(); m.ports.forEach((p) => { const o = document.createElement("option"); o.value = p.device; o.textContent = `${p.device} — ${p.desc}`; sel.appendChild(o); }); if (!m.ports.length) { const o = document.createElement("option"); o.textContent = "no serial ports"; sel.appendChild(o); } }
     if (m.type === "logging") { $("chk-log").checked = m.on; $("logpath").textContent = m.path || ""; }
     if (m.type === "log") consoleLine(m.text);

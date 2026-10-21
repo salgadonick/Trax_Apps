@@ -113,6 +113,7 @@ if (!Element.prototype.replaceChildren) Element.prototype.replaceChildren = func
       <p class="muted">Take control from the phone. The unit must be running and at rest; after requesting, press the tiller's power button once to confirm you're at the machine.</p>
       <button id="btn-remote-req" class="btn">Request control</button>
       <p id="remote-msg" class="drive-banner bad" hidden></p>
+      <button id="btn-remote-restart" class="btn small" hidden>Restart unit</button>
     </div>
     <div id="remote-pending" hidden>
       <p><b>Press the power button on the tiller</b> to confirm. Waiting…</p>
@@ -259,6 +260,7 @@ if (!Element.prototype.replaceChildren) Element.prototype.replaceChildren = func
       <button id="btn-dv-confirm" class="btn danger-fill" hidden>Confirm — resume control</button>
       <button id="btn-dv-clear-cancel" class="btn ghost" hidden>Keep stopped</button>
       <button id="btn-dv-block-release" class="btn ghost">Release control</button>
+      <button id="btn-dv-restart" class="btn" hidden>Restart unit</button>
       <button id="btn-dv-block-close" class="btn ghost" hidden>Close</button>
     </div>
   </div>

@@ -84,6 +84,7 @@ export const FAULTS = {
   36: ["TB_OPEN_COIL", "Trailer brake not connected", "No trailer-brake current: trailer not connected or the coil is open.", true],
   37: ["OVERTEMP_WARNING", "Running hot", "Temperature is high: power is limited.", true],
   38: ["REMOTE_OVERRIDDEN", "Remote control interrupted", "A local input was detected, so the control channel has been interrupted.", true],
+  39: ["REMOTE_LINK_IDLE", "Remote control ended", "The phone link dropped while the unit was at rest. The tiller is back in control; request control again when ready.", true],
   39: ["POWER_LOSS_WHILE_LIVE", "Power lost while running", "Power was lost while running; the previous run never shut down.", true],
   40: ["WEAK_BATTERY1", "Weak battery 1", "Battery 1 collapses under load far more than the others: weak or failing, replace it.", true],
   41: ["WEAK_BATTERY2", "Weak battery 2", "Battery 2 collapses under load far more than the others: weak or failing, replace it.", true],

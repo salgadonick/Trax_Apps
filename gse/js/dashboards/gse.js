@@ -3,7 +3,7 @@
 // (bench) view, remote control and the full-screen drive mode. Everything in
 // index.html marked data-dash="gse" belongs to this module.
 //
-// Dashboard contract (see app.js): { id, mount(ctx), render(d), onEvent(evt), onError(err),
+// Dashboard contract (see app.js): { id, mount(ctx), render(d), onEvent(evt), onError(err), onLink(on),
 // onCfg(key, value), onAdvanced(on), unmount() }. `ctx` gives the shell's
 // helpers: $, send, cfg (live settings), addEvent, badge, isAdvanced(),
 // srcKind() and the protocol module.
@@ -51,7 +51,18 @@ const REMOTE_ERR = {
   disabled:    "Remote control is not enabled in this unit's firmware.",
 };
 function remoteMsg(text) { const m = $("remote-msg"); if (!m) return; m.hidden = !text; m.textContent = text || ""; }
+export function onLink(on) {
+  // Link gone: nothing we remember about the session is true any more.
+  if (!on) { stopRc(); srcNow = 0; closeDrive(); remoteMsg(""); }
+}
 export function onError(data) {
+  if (data.what === "RC") {
+    // Frames refused: the unit is not under our control, whatever the screen says.
+    if (rc.armed) { stopRc(); if (!(last && (last.state === "FAULT" || last.estop_l))) closeDrive(); }
+    if (data.args[0] === "not_bonded") remoteMsg(REMOTE_ERR.not_bonded);
+    else remoteMsg("The unit is not under remote control. Request control again.");
+    return true;
+  }
   if (data.what !== "REMOTE") return false;
   const why = data.args[0];
   remoteMsg(REMOTE_ERR[why] || `The unit refused: ${why}`);
@@ -63,7 +74,7 @@ export function onEvent(data) {
   if (data.kind === "REMOTE") {
     const t = { pending: "Remote control requested — press the tiller button", armed: "Remote control active", released: "Remote control released",
                 overridden: "Local input detected — the control channel has been interrupted", lost: "Control link interrupted", timeout: "Remote request timed out",
-                stopped: "Remote STOP latched", link_lost: "Control link lost — the unit has shut down safely" }[data.a] || data.a;
+                stopped: "Remote STOP latched", link_lost: "Control link lost — the unit stopped and the tiller is back in control" }[data.a] || data.a;
     ctx.addEvent("REMOTE", t);
     if (data.a === "pending" || data.a === "armed") remoteMsg("");
     if (data.a === "armed" && !rc.armed) { srcNow = 2; startRc(); openDrive(); }   // first frame goes out now, not at the next TLM
@@ -249,7 +260,9 @@ function remoteUi(srcCode) {
   $("remote-armed").hidden = srcCode !== 2;
   $("remote-lost").hidden = srcCode !== 3;
   $("remote-stopped").hidden = srcCode !== 4;
-  $("btn-remote-req").disabled = !(last && last.state === "RUN");
+  const restartable = !!(last && last.state === "FAULT" && !last.estop_l && last.fault !== 1);
+  $("btn-remote-restart").hidden = !restartable;
+  $("btn-dv-restart").hidden = !restartable;
   const armed = srcCode === 2 || srcCode === 4;          // 4 = stopped: keep-alive frames only
   if (armed && !rc.armed) { startRc(); openDrive(); }
   else if (!armed && rc.armed) stopRc();
@@ -270,7 +283,7 @@ function driveBlock() {
   $("dv-block-title").textContent = fault ? (last.estop_l ? "E-STOP" : "FAULT") : "STOPPED";
   $("dv-block-text").textContent = fault
     ? (last.estop_l ? "The e-stop was pressed at the tiller. It is latched: power-cycle the unit at the tiller to clear it."
-                    : (last.faultTitle || "The unit has shut down") + ". Latched until the unit is power-cycled at the tiller.")
+                    : (last.faultTitle || "The unit has shut down") + ((!last.estop_l && last.fault !== 1) ? ". Fix the cause, then Restart, or power-cycle at the tiller." : ". Latched until the unit is power-cycled at the tiller."))
     : (clearArmed ? "Make sure the area around the unit is clear, then confirm." : "Remote STOP is latched. The unit is holding with the trailer brake on.");
   $("btn-dv-clear").hidden = fault || clearArmed;
   $("btn-dv-confirm").hidden = fault || !clearArmed;
@@ -342,7 +355,20 @@ function wire() {
     b.addEventListener("pointerdown", down); b.addEventListener("pointerup", up); b.addEventListener("pointercancel", up); b.addEventListener("lostpointercapture", up);
   });
   $("btn-restart").onclick = () => { if (confirm("Restart the unit's start-up sequence? Make sure the cause of the fault is fixed and the area is clear.")) send("RESTART"); };
-  $("btn-remote-req").onclick = () => { remoteMsg(""); send("REMOTE,REQ"); };
+  $("btn-remote-req").onclick = () => {
+    remoteMsg("");
+    if (!last) { remoteMsg("Not connected to a unit."); return; }
+    if (last.state !== "RUN") {
+      remoteMsg(last.state === "FAULT" ? `The unit is stopped on a fault (${last.faultTitle || "fault"}). Restart it first.`
+              : last.estop_l ? "The e-stop is latched at the tiller. Power-cycle the unit."
+              : `The unit is not running (${STATE_TEXT[last.state] || last.state}). Start it from the tiller first.`);
+      return;
+    }
+    send("REMOTE,REQ");
+  };
+  const restart = () => { if (confirm("Restart the unit's start-up sequence? Make sure the cause of the fault is fixed and the area is clear.")) send("RESTART"); };
+  $("btn-remote-restart").onclick = restart;
+  $("btn-dv-restart").onclick = () => { restart(); closeDrive(); };
   $("btn-remote-cancel").onclick = () => send("REMOTE,REL");
   $("btn-remote-rel").onclick = () => send("REMOTE,REL");
   $("btn-remote-rel2").onclick = () => send("REMOTE,REL");
@@ -360,7 +386,12 @@ function wire() {
   $("btn-dv-release").onclick = () => { send("REMOTE,REL"); closeDrive(); };
   $("btn-dv-aux").onclick = () => { rc.aux = rc.aux ? 0 : 1; $("btn-dv-aux").textContent = rc.aux ? "Unlock" : "Lock"; sendRc(); };
   // Leaving the page while armed: stop first. The deadman on the unit covers the rest.
-  document.addEventListener("visibilitychange", () => { if (document.hidden && rc.armed) { setStick(0); send("REMOTE,STOP"); } });
+  // Backgrounded (phone locked, app switched): timers stop, so frames stop. A
+  // STOP would need keep-alive frames and would time out into a link loss;
+  // release cleanly instead. Coming back means requesting control again.
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden && (srcNow === 2 || srcNow === 3 || srcNow === 4)) { setStick(0); stopRc(); send("REMOTE,REL"); closeDrive(); }
+  });
   $("thr-limit").oninput = (e) => { $("thr-limit-v").textContent = e.target.value + " %"; };
   $("thr-limit").onchange = (e) => send(`CFGSET,thr_limit,${e.target.value}`);
 }
