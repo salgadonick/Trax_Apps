@@ -215,6 +215,7 @@ function onLine(line) {
     case "err":
       if (data.what === "CFGSET") { settingStatus(data.args[1], data.args[0] === "unknown_key" ? "unknown to this firmware — re-flash" : data.args[0].replace("_", " "), "bad"); addEvent("ERR", `Setting ${data.args[1]}: ${data.args[0]}`); }
       if (data.what === "UNKNOWN" && data.args[0] === "ID") { onIdentity({ ...identifyByName($("devname").textContent) || { product: 1, info: PRODUCTS[1] }, code: PRODUCTS[1].code, fw: "", serial: "", shortId: "", nick: "", tlmVersion: proto ? proto.TLM_VERSION : 0, guessed: true }); }
+      else if (dash && dash.onError && dash.onError(data)) { /* shown by the dashboard where the operator is looking */ }
       else if ((data.what === "REMOTE" || data.what === "RC") && data.args[0] === "not_bonded") addEvent("ERR", "Remote: this phone is not paired with the unit. Triple-press the tiller power button to open pairing (60 s), accept the pairing prompt, then request control again.");
       else if (data.what === "REMOTE" || data.what === "RC") addEvent("ERR", `Remote: ${data.args.join(" ")}`); else addEvent("ERR", data.reason);
       break;

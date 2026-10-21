@@ -3,7 +3,7 @@
 // (bench) view, remote control and the full-screen drive mode. Everything in
 // index.html marked data-dash="gse" belongs to this module.
 //
-// Dashboard contract (see app.js): { id, mount(ctx), render(d), onEvent(evt),
+// Dashboard contract (see app.js): { id, mount(ctx), render(d), onEvent(evt), onError(err),
 // onCfg(key, value), onAdvanced(on), unmount() }. `ctx` gives the shell's
 // helpers: $, send, cfg (live settings), addEvent, badge, isAdvanced(),
 // srcKind() and the protocol module.
@@ -38,19 +38,41 @@ export function onAdvanced(on) { if (on && last) renderAdvanced(last); }
 export function onCfg(key, value) {
   if (key === "thr_limit" && document.activeElement !== $("thr-limit")) { $("thr-limit").value = value; $("thr-limit-v").textContent = value + " %"; }
 }
+// ERR replies to the operator's own actions, shown under the button that
+// caused them. The events list is at the bottom of the page and off-screen on
+// a phone (Bluefy, 2026-10-21: a refused request looked like nothing happened).
+const REMOTE_ERR = {
+  not_bonded:  "This phone is not paired with the unit. Triple-press the tiller power button to open pairing (60 s), accept the pairing prompt, then request again.",
+  not_run:     "The unit is not running. Start it from the tiller first.",
+  not_at_rest: "Release the throttle and direction on the tiller, then request again.",
+  busy:        "A request is already in progress.",
+  not_armed:   "Remote control is not active.",
+  not_stopped: "Nothing to resume.",
+  disabled:    "Remote control is not enabled in this unit's firmware.",
+};
+function remoteMsg(text) { const m = $("remote-msg"); if (!m) return; m.hidden = !text; m.textContent = text || ""; }
+export function onError(data) {
+  if (data.what !== "REMOTE") return false;
+  const why = data.args[0];
+  remoteMsg(REMOTE_ERR[why] || `The unit refused: ${why}`);
+  ctx.addEvent("ERR", `Remote: ${REMOTE_ERR[why] || why}`);
+  return true;
+}
+
 export function onEvent(data) {
   if (data.kind === "REMOTE") {
     const t = { pending: "Remote control requested — press the tiller button", armed: "Remote control active", released: "Remote control released",
                 overridden: "Local input detected — the control channel has been interrupted", lost: "Control link interrupted", timeout: "Remote request timed out",
                 stopped: "Remote STOP latched", link_lost: "Control link lost — the unit has shut down safely" }[data.a] || data.a;
     ctx.addEvent("REMOTE", t);
+    if (data.a === "pending" || data.a === "armed") remoteMsg("");
     if (data.a === "armed" && !rc.armed) { srcNow = 2; startRc(); openDrive(); }   // first frame goes out now, not at the next TLM
     if (data.a === "overridden") $("remote-lost-text").textContent = "Local input detected — the control channel has been interrupted. Request control again to continue.";
     if (data.a === "lost") $("remote-lost-text").textContent = "No commands reached the unit. It has stopped and is holding.";
     return true;
   }
   if (data.kind === "STATE") { ctx.addEvent("STATE", `${STATE_TEXT[data.a] || data.a}`); return true; }
-  if (data.kind === "PWR" && data.a.startsWith("pairing")) { ctx.addEvent("PWR", data.a === "pairing_open" ? "Bluetooth pairing window open — pair your phone now (60 s)" : "Bluetooth pairing window closed"); return true; }
+  if (data.kind === "PWR" && data.a.startsWith("pairing")) { ctx.addEvent("PWR", data.a === "pairing_open" ? "Bluetooth pairing window open — pair your phone now (60 s)" : "Bluetooth pairing window closed"); if (data.a === "pairing_open") remoteMsg(""); return true; }
   return false;
 }
 
@@ -320,7 +342,7 @@ function wire() {
     b.addEventListener("pointerdown", down); b.addEventListener("pointerup", up); b.addEventListener("pointercancel", up); b.addEventListener("lostpointercapture", up);
   });
   $("btn-restart").onclick = () => { if (confirm("Restart the unit's start-up sequence? Make sure the cause of the fault is fixed and the area is clear.")) send("RESTART"); };
-  $("btn-remote-req").onclick = () => send("REMOTE,REQ");
+  $("btn-remote-req").onclick = () => { remoteMsg(""); send("REMOTE,REQ"); };
   $("btn-remote-cancel").onclick = () => send("REMOTE,REL");
   $("btn-remote-rel").onclick = () => send("REMOTE,REL");
   $("btn-remote-rel2").onclick = () => send("REMOTE,REL");
