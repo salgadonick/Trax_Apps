@@ -43,7 +43,7 @@ export function onCfg(key, value) {
 // caused them. The events list is at the bottom of the page and off-screen on
 // a phone (Bluefy, 2026-10-21: a refused request looked like nothing happened).
 const REMOTE_ERR = {
-  not_bonded:  "This phone is not paired with the unit. Triple-press the tiller power button to open pairing (60 s), accept the pairing prompt, then request again.",
+  not_bonded:  "This phone is not paired with the unit. Triple-press the tiller power button to open pairing (60 s). If the unit drops the connection at that moment, connect again. Then request control, accept the pairing prompt, and request once more.",
   not_run:     "The unit is not running. Start it from the tiller first.",
   not_at_rest: "Release the throttle and direction on the tiller, then request again.",
   busy:        "A request is already in progress.",
