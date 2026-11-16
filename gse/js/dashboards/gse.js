@@ -114,7 +114,7 @@ export function render(d) {
   $("state").textContent = d.state === "FAULT" ? "STOPPED" : d.state === "RUN" ? "RUNNING" : d.state.replace("_", " ");
   $("state-text").textContent = d.state === "FAULT" ? d.faultTitle : (STATE_TEXT[d.state] || d.state);
   const sub = [];
-  if (d.state === "RUN" && d.guard < 100) sub.push(`Power limited to ${d.guard}% (low battery)`);
+  if (d.state === "RUN" && d.guard < 100) sub.push(`Power limited to ${d.guard}% (motor current or temperature)`);
   if (d.src !== 0) sub.push(`Control: ${d.srcName}`);
   if (d.state === "RUN" && d.sleep > 0 && d.sleep < 120) sub.push(`Auto-off in ${d.sleep}s`);
   $("state-sub").textContent = sub.join(" · ");
@@ -203,6 +203,13 @@ export function render(d) {
   $("speed").textContent = d.inputs.speed ? "slow" : "normal";
   $("mbrake").textContent = d.inputsValid.brake_pd ? (d.inputs.brake_pd ? "released" : "engaged") : "—";
   $("tb").textContent = cfg.tb_enable === 0 ? "disabled" : d.outputs.tb_bus ? `${d.tb_pct} %  ·  ${d.i_tb.toFixed(1)} A` : "off";
+  // Hardware rev B extras: absent (null) on older firmware, -1 / -99 / 0 when the board cannot measure them.
+  const tst = d.tb_st || 0;
+  $("trailer-row").hidden = tst === 0;
+  if (tst) { $("trailer").textContent = ctx.proto.TRAILER_NAMES[tst] || "—"; $("trailer").className = tst === 3 ? "bad" : ""; }
+  const hasTemp = d.temp !== null && d.temp > -90;
+  $("temp-row").hidden = !hasTemp;
+  if (hasTemp) $("temp").textContent = `${d.temp.toFixed(0)} °C`;
   const db = $("drive-badges"); db.replaceChildren();
   if (d.dir_in === 3) badge(db, "Both directions!", "bad");
   if (d.inputs.horn) badge(db, "Horn", "");

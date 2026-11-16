@@ -99,6 +99,8 @@ if (!Element.prototype.replaceChildren) Element.prototype.replaceChildren = func
       <div class="row"><span>Speed mode</span><b id="speed">—</b></div>
       <div class="row"><span>Motor brake</span><b id="mbrake">—</b></div>
       <div class="row"><span>Trailer brake</span><b id="tb">—</b></div>
+      <div class="row" id="trailer-row" hidden><span>Trailer</span><b id="trailer">—</b></div>
+      <div class="row" id="temp-row" hidden><span>Board temperature</span><b id="temp">—</b></div>
       <div class="row slider-row">
         <label for="thr-limit">Speed limit <b id="thr-limit-v">—</b></label>
         <input id="thr-limit" type="range" min="50" max="100" step="5" value="100" aria-label="Speed limit percent">

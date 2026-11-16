@@ -36,7 +36,13 @@ export const TLM_FIELDS = [
   ["up",      "int", "Uptime",                  "s",  "Vehicle"],
   ["sleep",   "int", "Auto-off in",             "s",  "Vehicle"],
   ["estop_l", "int", "E-stop latched",          "",   "Vehicle"],
+  // Appended 2026-11-16 (hardware rev B). Optional: older firmware stops at estop_l.
+  ["v_tb",    "f",   "Trailer brake supply",    "V",  "Trailer"],
+  ["v_aux",   "f",   "14 V aux supply",         "V",  "Trailer"],
+  ["tb_st",   "int", "Trailer detected",        "",   "Trailer"],
 ];
+export const TLM_REQUIRED = 26;   // fields every v1 firmware sends; the rest read as null when absent
+export const TRAILER_NAMES = ["unknown", "none", "connected", "open circuit"];
 export const FIELD_CATEGORIES = ["Vehicle", "Battery", "Tiller", "Motor controller", "Trailer", "Outputs"];
 
 export const INPUT_NAMES  = ["wake", "temp_alert", "brake_pd", "reverse", "forward", "speed",
@@ -90,6 +96,8 @@ export const FAULTS = {
   41: ["WEAK_BATTERY2", "Weak battery 2", "Battery 2 collapses under load far more than the others: weak or failing, replace it.", true],
   42: ["WEAK_BATTERY3", "Weak battery 3", "Battery 3 collapses under load far more than the others: weak or failing, replace it.", true],
   43: ["REMOTE_LINK_IDLE", "Remote control ended", "The phone link dropped while the unit was at rest. The tiller is back in control; request control again when ready.", true],
+  44: ["TEMP_SENSOR_LOST", "Temperature sensor not answering", "The power-board temperature sensor stopped answering. The unit keeps running without over-temperature protection; have it checked.", true],
+  45: ["MOTOR_CURRENT_LIMITED", "Motor current limited", "The motor current reached the limit, so the unit is holding the throttle down. Ease off, or lighten the load.", true],
 };
 
 // key -> {label, cat, unit, kind, help, enum?|values?}   kind: int | bool | enum | enumv | x10 | x100 | mv
@@ -104,6 +112,13 @@ export const SETTINGS = {
   brake_engage_ms: { label: "Motor brake check: settle time", cat: "Motor controller", unit: "ms", kind: "int", help: "At start-up, how long after the key line comes up before the brake line is judged. The brake-connected check only runs during start-up." },
   brake_fault_ms:  { label: "Motor brake check: fault time", cat: "Motor controller", unit: "ms", kind: "int", help: "At start-up, how long the brake line may read disconnected before the unit faults. Not checked while running. 0 turns the check off." },
   mc_decel_ms:  { label: "Motor controller decel ramp", cat: "Trailer", unit: "ms", kind: "int", help: "The Curtis decel setting: time for its speed command to fall from 100 % to 0 (1000 on the GSE8000 program). The trailer brake ramps up in step with it when the throttle is released to zero; a partial release never brakes." },
+  ilim_kp_x100:  { label: "Current limiter: P gain", cat: "Motor controller", unit: "", kind: "x100", help: "Fold-back per unit of overage (current over the limit, as a fraction of the limit), per 20 ms. 0.80 as proven on the dolly." },
+  ilim_ki_x100:  { label: "Current limiter: I gain", cat: "Motor controller", unit: "", kind: "x100", help: "Fold-back on the accumulated overage; holds the current exactly at the limit. 0.10 by default." },
+  ilim_kd_x1000: { label: "Current limiter: D gain (x1000)", cat: "Motor controller", unit: "", kind: "int", help: "Spike guard: acts on a current rising faster than 300 A/s, before the limit is reached. 10 = 0.010." },
+  temp_warn_c:   { label: "Temperature: warning", cat: "Power", unit: "°C", kind: "int", help: "Power-board temperature at which a warning is logged and the throttle ceiling starts to fold back (hardware rev B)." },
+  temp_fault_c:  { label: "Temperature: shutdown", cat: "Power", unit: "°C", kind: "int", help: "Power-board temperature at which the unit stops with an over-temperature fault. Also programmed into the sensor's own alert pin as a second opinion." },
+  tb_present_x10: { label: "Trailer detect current", cat: "Trailer", unit: "A", kind: "x10", help: "Trailer-brake coil current at hold above which a trailer counts as connected. Set below one brake magnet's draw." },
+  ilim_a:       { label: "Motor current limit", cat: "Drive", unit: "A", kind: "int", help: "While the throttle is commanded, the unit lowers its throttle ceiling to keep the board (motor) current at or below this. A warning is logged when the limiter acts. 0 turns the limiter off." },
   thr_limit:    { label: "Speed limit", cat: "Drive", unit: "%", kind: "int", help: "The full tiller throttle range maps to 0 to this percentage of the motor controller's input. Stored on the unit." },
   lift_ilk:     { label: "Lift/lower interlock", cat: "Drive", unit: "", kind: "bool", help: "Lift and lower pressed together drive neither." },
   horn_beep:    { label: "Direction beep", cat: "Indicators", unit: "", kind: "enum", help: "Beep the horn while travelling in the selected direction.", enum: ["Off", "Reverse", "Forward", "Both"] },
@@ -117,7 +132,7 @@ export const SETTINGS = {
   soc_trim_mv:  { label: "Charge reading trim", cat: "Battery", unit: "mV", kind: "mv", help: "Added to each battery's resting voltage before the state-of-charge lookup. Set at calibration." },
   i_board_zero_mv: { label: "Board current: zero", cat: "Calibration", unit: "mV", kind: "int", help: "Sense-pin voltage at zero board current (schematic 150). Adjust until the board current reads correctly at a known low load." },
   i_board_uohm:    { label: "Board current: shunt", cat: "Calibration", unit: "µΩ", kind: "int", help: "Effective shunt resistance (schematic 500). Adjust until the board current matches a clamp meter at a higher load." },
-  i_tb_zero_mv:    { label: "Trailer brake current: zero", cat: "Calibration", unit: "mV", kind: "int", help: "Sense-pin voltage at zero trailer-brake current (schematic 150)." },
+  i_tb_zero_mv:    { label: "Trailer brake current: zero", cat: "Calibration", unit: "mV", kind: "int", help: "Sense-pin voltage at zero trailer-brake current. 0 = automatic: the unit measures it at every power-up before the trailer-brake supply comes on. Set a value only to override that." },
   i_tb_uohm:       { label: "Trailer brake current: shunt", cat: "Calibration", unit: "µΩ", kind: "int", help: "Effective shunt resistance (schematic 1000). Adjust until the trailer-brake current matches a clamp meter." },
   uvlo_soc:     { label: "Low-battery cut-off", cat: "Battery", unit: "% charge", kind: "int", help: "Below this resting state of charge the unit shuts down." },
   start_soc:    { label: "Minimum charge to start", cat: "Battery", unit: "% charge", kind: "int", help: "The motor controller is not started below this resting state of charge." },
@@ -201,9 +216,9 @@ export function parseLine(line) {
       case "TLM": {
         if (Number(p[1]) !== TLM_VERSION) return { kind: "err", data: { reason: `TLM v${p[1]}` } };
         const vals = p.slice(3);
-        if (vals.length < TLM_FIELDS.length) return { kind: "err", data: { reason: "short TLM" } };
+        if (vals.length < TLM_REQUIRED) return { kind: "err", data: { reason: "short TLM" } };
         const d = { seq: Number(p[2]) };
-        TLM_FIELDS.forEach(([k, t], i) => { d[k] = conv(t, vals[i]); });
+        TLM_FIELDS.forEach(([k, t], i) => { d[k] = i < vals.length ? conv(t, vals[i]) : null; });
         d.inputs = {}; d.inputsValid = {}; d.outputs = {};
         INPUT_NAMES.forEach((n, i) => { d.inputs[n] = !!(d.in >> i & 1); d.inputsValid[n] = !!(d.valid >> i & 1); });
         OUTPUT_NAMES.forEach((n, i) => { d.outputs[n] = !!(d.out >> i & 1); });
