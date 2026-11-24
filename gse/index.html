@@ -148,6 +148,135 @@ if (!Element.prototype.replaceChildren) Element.prototype.replaceChildren = func
     </div>
   </section>
 
+  <!-- ===== X2 dual motor: operator view ===== -->
+  <section id="x2-hero" class="hero state-none" data-dash="x2" hidden>
+    <div class="hero-state" id="x2-state">—</div>
+    <div class="hero-text" id="x2-state-text">Not connected</div>
+    <div class="hero-sub" id="x2-state-sub"></div>
+  </section>
+
+  <section id="x2-alert" class="alert" data-dash="x2" data-keep-hidden hidden>
+    <div class="alert-title" id="x2-alert-title"></div>
+    <div class="alert-text" id="x2-alert-text"></div>
+    <div class="row wrap-row" style="margin-top:8px">
+      <button id="x2-btn-restart" class="btn small" hidden>Restart</button>
+      <button class="btn small sim" data-s="reset" hidden>Power cycle (simulator)</button>
+    </div>
+  </section>
+
+  <!-- a change to a confirmed setting (remote type, control style): waiting for the unit's button, or stored and waiting for a restart -->
+  <section id="x2-cfg-notice" class="alert warn" data-dash="x2" data-keep-hidden hidden>
+    <div class="alert-title" id="x2-cfg-notice-title"></div>
+    <div class="alert-text" id="x2-cfg-notice-text"></div>
+    <div class="row wrap-row" style="margin-top:8px">
+      <button id="x2-btn-cfg-cancel" class="btn small ghost">Cancel</button>
+      <button id="x2-btn-cfg-sim-press" class="btn small sim" data-s="press" hidden>Simulate: power button press</button>
+      <button id="x2-btn-cfg-sim-reset" class="btn small sim" data-s="reset" hidden>Power cycle (simulator)</button>
+    </div>
+  </section>
+
+  <section class="grid" data-dash="x2" hidden>
+    <div class="card">
+      <div class="card-h">Control <span class="muted small" id="x2-ctl-mode"></span></div>
+      <div class="row"><span>Driving now</span><b id="x2-ctl">—</b></div>
+      <div class="row" id="x2-link-row"><span>Trax handheld</span><b id="x2-link">—</b></div>
+      <div class="row" id="x2-kt-row"><span>Kar-Tech levers</span><b id="x2-kt">—</b></div>
+      <div class="x2-tracks">
+        <div class="x2-track"><span>Left</span><div class="x2-bibar"><i id="x2-out-l"></i></div><b id="x2-out-l-v">—</b></div>
+        <div class="x2-track"><span>Right</span><div class="x2-bibar"><i id="x2-out-r"></i></div><b id="x2-out-r-v">—</b></div>
+      </div>
+      <div class="row"><span>Speed mode</span><b id="x2-speed">—</b></div>
+      <div class="row slider-row">
+        <label for="x2-thr-limit">Speed limit <b id="x2-thr-limit-v">—</b></label>
+        <input id="x2-thr-limit" type="range" min="10" max="100" step="5" value="100" aria-label="Speed limit percent">
+      </div>
+      <div class="badges" id="x2-ctl-badges"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-h">Wheel speed <span class="muted small" id="x2-ws-note"></span></div>
+      <div class="x2-tracks">
+        <div class="x2-track"><span>Left</span><div class="bar"><div id="x2-ws-l" class="bar-fill accent"></div></div><b id="x2-ws-l-v">—</b></div>
+        <div class="x2-track"><span>Right</span><div class="bar"><div id="x2-ws-r" class="bar-fill accent"></div></div><b id="x2-ws-r-v">—</b></div>
+      </div>
+      <div class="row"><span>Difference</span><b id="x2-ws-diff">—</b></div>
+      <div class="row"><span>Drive assist</span><b id="x2-pid">—</b></div>
+      <div class="x2-track x2-trim"><span>Trim</span><div class="x2-bibar"><i id="x2-pid-u"></i></div><b id="x2-pid-u-v">—</b></div>
+      <div class="row"><span>Learned trim</span><b id="x2-learn">—</b></div>
+      <label class="chk"><input type="checkbox" id="x2-pid-en"> Keep the tracks matched (drive assist)</label>
+      <div class="badges" id="x2-ws-badges"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-h">Battery <span class="muted small" id="x2-batt-type"></span></div>
+      <div class="soc"><span id="x2-soc">—</span><span class="unit">%</span></div>
+      <div class="bar"><div id="x2-socbar" class="bar-fill"></div></div>
+      <div class="row"><span>Pack</span><b id="x2-v36">—</b></div>
+      <div class="units" id="x2-units">
+        <div><span>B1</span><b id="x2-b1">—</b><i id="x2-b1bar"></i></div>
+        <div><span>B2</span><b id="x2-b2">—</b><i id="x2-b2bar"></i></div>
+        <div><span>B3</span><b id="x2-b3">—</b><i id="x2-b3bar"></i></div>
+      </div>
+      <div class="row"><span>Board current</span><b id="x2-i-board">—</b></div>
+      <div class="row" id="x2-temp-row" hidden><span>Board temperature</span><b id="x2-temp">—</b></div>
+      <div class="badges" id="x2-batt-badges"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-h">Machine</div>
+      <div class="row"><span>Controller A</span><b id="x2-mc-a">—</b></div>
+      <div class="row"><span>Controller B</span><b id="x2-mc-b">—</b></div>
+      <div class="row"><span>Motor brakes</span><b id="x2-brakes">—</b></div>
+      <div class="row"><span>Power relays</span><b id="x2-relays">—</b></div>
+      <div class="row"><span>E-stop loop</span><b id="x2-estop">—</b></div>
+      <div class="row"><span>Trailer brake</span><b id="x2-tb">—</b></div>
+      <div class="row" id="x2-trailer-row" hidden><span>Trailer</span><b id="x2-trailer">—</b></div>
+      <div class="badges" id="x2-mach-badges"></div>
+    </div>
+  </section>
+
+  <section class="card" id="x2-remote-card" data-dash="x2" hidden>
+    <div class="card-h">Phone control <span class="muted small" id="x2-remote-state">radio remote</span></div>
+    <div id="x2-remote-idle">
+      <p class="muted" id="x2-remote-intro">Drive from this phone with the same controls as the radio remote. The unit must be running and at rest; after requesting, press the unit's power button once to confirm you are at the machine.</p>
+      <p id="x2-remote-link" class="drive-banner" hidden></p>
+      <div class="row"><span>Control style</span><b id="x2-style-now">—</b></div>
+      <div class="row wrap-row">
+        <button id="x2-btn-remote-req" class="btn">Request control</button>
+        <button id="x2-btn-style" class="btn ghost" title="Needs a press of the unit's power button and a restart of the unit">Change control style…</button>
+      </div>
+      <p id="x2-remote-msg" class="drive-banner bad" hidden></p>
+    </div>
+    <div id="x2-remote-pending" hidden>
+      <p><b>Press the power button on the unit</b> to confirm. Waiting…</p>
+      <div class="row wrap-row">
+        <button id="x2-btn-remote-cancel" class="btn ghost small">Cancel</button>
+        <button class="btn small sim" data-s="press" hidden>Simulate: power button press</button>
+      </div>
+    </div>
+    <div id="x2-remote-armed" hidden>
+      <p><b>The phone is driving.</b> The drive screen is open; if it was closed, reopen it.</p>
+      <div class="row wrap-row"><button id="x2-btn-drive-open" class="btn">Open drive screen</button>
+        <button id="x2-btn-remote-rel" class="btn ghost">Release control</button></div>
+    </div>
+    <div id="x2-remote-stopped" hidden class="alert">
+      <div class="alert-title">STOP is latched</div>
+      <div class="alert-text">The unit is holding. Open the drive screen to clear the stop, or release control.</div>
+      <div class="row wrap-row" style="margin-top:8px">
+        <button id="x2-btn-remote-open2" class="btn small">Open drive screen</button>
+        <button id="x2-btn-remote-rel3" class="btn small ghost">Release</button>
+      </div>
+    </div>
+    <div id="x2-remote-lost" hidden class="alert warn">
+      <div class="alert-title">Control link interrupted</div>
+      <div class="alert-text" id="x2-remote-lost-text">No commands reached the unit. It has stopped and is holding.</div>
+      <div class="row wrap-row" style="margin-top:8px">
+        <button id="x2-btn-remote-resume" class="btn small">Resume</button>
+        <button id="x2-btn-remote-rel2" class="btn small ghost">Release</button>
+      </div>
+    </div>
+  </section>
+
   <section class="card" id="faults-card">
     <div class="card-h">Stored faults <button id="btn-faults" class="btn small ghost">Refresh</button>
       <button id="btn-faults-clr" class="btn small ghost danger">Clear</button></div>
@@ -201,6 +330,57 @@ if (!Element.prototype.replaceChildren) Element.prototype.replaceChildren = func
     <details class="card" data-dash="gse">
       <summary>All readings</summary>
       <div id="fields"></div>
+    </details>
+
+    <details class="card" open data-dash="x2" hidden>
+      <summary>Live <span class="muted small" data-rate></span></summary>
+      <canvas id="x2-chart" height="160"></canvas>
+      <div class="legend"><i class="l1"></i>Left wheel Hz <i class="l2"></i>Right wheel Hz <i class="l3"></i>Assist trim (±20 %)</div>
+      <div class="row wrap-row" style="margin-top:8px">
+        <button id="x2-btn-learn-clr" class="btn small ghost" title="After a motor, gearbox or tyre change">Forget the learned trim</button>
+        <span class="muted small" id="x2-learn-detail"></span>
+      </div>
+    </details>
+
+    <details class="card" data-dash="x2" hidden>
+      <summary>Inputs and outputs</summary>
+      <div class="sub-h">Inputs</div>
+      <div class="chips" id="x2-inputs"></div>
+      <div class="sub-h">Outputs</div>
+      <div class="chips" id="x2-outputs"></div>
+      <div class="sub-h">Remote buttons in the current command</div>
+      <div class="chips" id="x2-btns"></div>
+    </details>
+
+    <details class="card" data-dash="x2" hidden>
+      <summary>All readings</summary>
+      <div id="x2-fields"></div>
+    </details>
+
+    <details class="card" data-dash="x2" hidden>
+      <summary>Simulator (bench) <span class="muted small">shown with the X2 simulator</span></summary>
+      <div class="row wrap-row" id="x2-sim-controls">
+        <button class="btn small ghost sim" data-s="radio">Handheld on/off</button>
+        <button class="btn small ghost sim" data-s="drive">Handheld: drive forward</button>
+        <button class="btn small ghost sim" data-s="turn">Handheld: turn</button>
+        <button class="btn small ghost sim" data-s="local">Handheld: touch the stick</button>
+        <button class="btn small ghost sim" data-s="restop">Handheld e-stop</button>
+        <button class="btn small ghost sim" data-s="kartech">Kar-Tech on/off</button>
+        <button class="btn small ghost sim" data-s="ktdrive">Kar-Tech: drive forward</button>
+        <button class="btn small ghost sim" data-s="ktturn">Kar-Tech: turn</button>
+        <button class="btn small ghost sim" data-s="ktopen">Kar-Tech lever wire open</button>
+        <button class="btn small ghost sim" data-s="held">Remote held off zero (then power cycle)</button>
+        <button class="btn small ghost sim" data-s="mismatch">Track mismatch 10 %</button>
+        <button class="btn small ghost sim" data-s="wsfail">Left sensor fail</button>
+        <button class="btn small ghost sim" data-s="estop">E-stop loop</button>
+        <button class="btn small ghost sim" data-s="j20fault">Controller B fault</button>
+        <button class="btn small ghost sim" data-s="lowbatt">Low battery</button>
+        <button class="btn small ghost sim" data-s="weakbatt">Unevenly charged battery</button>
+        <button class="btn small ghost sim" data-s="failbatt">Weak battery (droop)</button>
+        <button class="btn small ghost sim" data-s="pairing">BLE pairing window</button>
+        <button class="btn small ghost sim" data-s="press">Power button press</button>
+        <button class="btn small ghost sim" data-s="reset">Power cycle</button>
+      </div>
     </details>
 
     <details class="card" id="settings-card">
@@ -265,6 +445,67 @@ if (!Element.prototype.replaceChildren) Element.prototype.replaceChildren = func
       <button id="btn-dv-block-release" class="btn ghost">Release control</button>
       <button id="btn-dv-restart" class="btn" hidden>Restart unit</button>
       <button id="btn-dv-block-close" class="btn ghost" hidden>Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== X2 dual motor: full-screen drive mode (phone control armed) ===== -->
+<div id="x2-drive" class="drive x2-drive" data-dash="x2" data-keep-hidden hidden>
+  <div class="drive-top">
+    <div class="drive-stat"><span>Charge</span><b id="x2-dv-soc">—</b></div>
+    <div class="drive-stat"><span>Left</span><b id="x2-dv-wl">—</b></div>
+    <div class="drive-stat"><span>Right</span><b id="x2-dv-wr">—</b></div>
+    <div class="drive-stat"><span>Link</span><b id="x2-dv-link">—</b></div>
+  </div>
+  <div id="x2-dv-banner" class="drive-banner" hidden></div>
+  <div class="x2-dv-bar">
+    <span id="x2-style-label" class="x2-style" title="The unit's control style. Changing it needs a press of the unit's power button and a restart.">RC car</span>
+    <button id="x2-btn-fast" class="btn small ghost" aria-pressed="false">Fast</button>
+    <label class="x2-knob" for="x2-pot"><span>Speed <b id="x2-pot-v">100 %</b></span>
+      <input id="x2-pot" type="range" min="0" max="100" step="5" value="100" aria-label="Speed knob percent"></label>
+  </div>
+  <div class="drive-main">
+    <!-- left control: forward / reverse (RC car) or the left track (tank) -->
+    <div id="x2-lev-l" class="vstick" role="slider" aria-label="Left stick: forward and reverse. Drag and hold." aria-orientation="vertical" aria-valuemin="-100" aria-valuemax="100" aria-valuenow="0">
+      <div class="vstick-track"><div class="vstick-scale"><span class="c">FWD</span><span class="c">REV</span></div>
+        <div class="vstick-center"></div><div class="vstick-fill"></div>
+        <div class="vstick-knob"><span>0</span><small>DRIVE</small></div></div>
+    </div>
+    <!-- right control, RC car: rotation -->
+    <div id="x2-rot" class="vstick x2-h" role="slider" aria-label="Right stick: rotation. Drag left or right and hold." aria-orientation="horizontal" aria-valuemin="-100" aria-valuemax="100" aria-valuenow="0">
+      <div class="vstick-track"><div class="vstick-scale"><span class="c">◀ LEFT</span><span class="c">RIGHT ▶</span></div>
+        <div class="vstick-center"></div><div class="vstick-fill"></div>
+        <div class="vstick-knob"><span>0</span><small>TURN</small></div></div>
+    </div>
+    <!-- right control, tank: the right track -->
+    <div id="x2-lev-r" class="vstick" role="slider" aria-label="Right track lever. Drag and hold." aria-orientation="vertical" aria-valuemin="-100" aria-valuemax="100" aria-valuenow="0" hidden>
+      <div class="vstick-track"><div class="vstick-scale"><span class="c">FWD</span><span class="c">REV</span></div>
+        <div class="vstick-center"></div><div class="vstick-fill"></div>
+        <div class="vstick-knob"><span>0</span><small>RIGHT</small></div></div>
+    </div>
+  </div>
+  <div class="drive-aux x2-aux">
+    <button class="btn x2-hold aux" data-btn="btn2">Lift 1</button>
+    <button class="btn x2-hold aux" data-btn="btn3">Lower 1</button>
+    <button class="btn x2-hold aux" data-btn="btn0">Lift 2</button>
+    <button class="btn x2-hold aux" data-btn="btn1">Lower 2</button>
+    <button class="btn x2-hold aux" data-btn="sw1" id="x2-btn-sw1">Horn</button>
+  </div>
+  <div class="drive-bottom">
+    <button id="x2-btn-dv-stop" class="btn danger-fill">STOP</button>
+    <button id="x2-btn-dv-resume" class="btn" hidden>Resume</button>
+    <button id="x2-btn-dv-release" class="btn ghost">Release control</button>
+  </div>
+  <div id="x2-dv-block" class="drive-block" hidden>
+    <div class="drive-block-title" id="x2-dv-block-title">STOPPED</div>
+    <div class="drive-block-text" id="x2-dv-block-text"></div>
+    <div class="drive-block-actions">
+      <button id="x2-btn-dv-clear" class="btn">Clear stop</button>
+      <button id="x2-btn-dv-confirm" class="btn danger-fill" hidden>Confirm — resume control</button>
+      <button id="x2-btn-dv-clear-cancel" class="btn ghost" hidden>Keep stopped</button>
+      <button id="x2-btn-dv-block-release" class="btn ghost">Release control</button>
+      <button id="x2-btn-dv-restart" class="btn" hidden>Restart unit</button>
+      <button id="x2-btn-dv-block-close" class="btn ghost" hidden>Close</button>
     </div>
   </div>
 </div>

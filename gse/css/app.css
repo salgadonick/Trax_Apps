@@ -190,3 +190,41 @@ body.driving { position: fixed; inset: 0; overflow: hidden; }          /* no pag
 .drive-block-actions .btn { min-height: 52px; font-size: 16px; font-weight: 700; background: #fff; color: #111; border-color: #fff; }
 .drive-block-actions .btn.ghost { background: transparent; color: inherit; border-color: currentColor; }
 .drive-block-actions .btn.danger-fill { background: #111; color: #fff; border-color: #111; }
+
+/* ---- X2 dual-motor dashboard (data-dash="x2") ---- */
+.hero.state-SERVICE { background: var(--warn-bg); border-color: transparent; }
+.x2-tracks { display: grid; gap: 6px; margin: 6px 0; }
+.x2-track { display: grid; grid-template-columns: 44px 1fr 92px; gap: 8px; align-items: center; }
+.x2-track span { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.x2-track b { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.x2-track .bar { margin: 0; }
+/* centre-zero bar: forward / positive grows right, reverse / negative grows left */
+.x2-bibar { position: relative; height: 10px; border-radius: 6px; background: var(--key-bg); overflow: hidden; }
+.x2-bibar::after { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--muted); opacity: .5; }
+.x2-bibar i { position: absolute; top: 0; bottom: 0; left: 50%; width: 0; background: var(--accent); transition: width .15s, left .15s; }
+.x2-bibar i.rev { background: var(--info); }
+.x2-trim { margin-bottom: 8px; }
+/* drive screen */
+.x2-dv-bar { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.x2-style { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--accent);
+  border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; background: var(--surface); white-space: nowrap; }
+.x2-knob { flex: 1; min-width: 150px; display: grid; gap: 2px; font-size: 12px; color: var(--muted); }
+.x2-knob span { display: flex; justify-content: space-between; }
+.x2-knob b { color: var(--ink); }
+/* Two controls side by side, one per thumb. RC car: left = drive (vertical),
+   right = rotation (horizontal, .x2-h). Tank: two vertical levers. */
+.x2-drive .vstick-scale { align-items: center; }
+.vstick.x2-h .vstick-scale { flex-direction: row; align-items: flex-start; }
+.vstick.x2-h .vstick-center { left: 50%; right: auto; top: 8%; bottom: 8%; width: 2px; height: auto; }
+.vstick.x2-h .vstick-fill { left: 50%; right: auto; width: 0; top: 50%; height: 128px; margin-top: -64px; }
+.vstick.x2-h .vstick-knob { left: 50%; right: auto; top: 50%; width: 76px; height: 128px; margin: -64px 0 0 -38px; }
+.x2-drive .drive-aux.x2-aux { width: auto; flex-direction: row; gap: 8px; padding-bottom: 10px; }
+.x2-drive .btn.aux { font-size: 14px; min-height: 46px; padding-inline: 2px; min-width: 0; }
+.btn.x2-hold { user-select: none; -webkit-user-select: none; touch-action: none; }
+.btn.x2-hold.active { background: var(--ok); border-color: var(--ok); }
+@media (orientation: landscape) and (max-height: 520px) {
+  .x2-drive .drive-top { grid-template-columns: repeat(4, 1fr); }
+  .x2-drive .btn.aux { min-height: 34px; font-size: 13px; }
+  .x2-drive .drive-aux.x2-aux { padding-bottom: 6px; }
+  .vstick.x2-h .vstick-knob, .vstick.x2-h .vstick-fill { height: 84px; margin-top: -42px; }
+}

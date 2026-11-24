@@ -14,7 +14,10 @@ export const PRODUCTS = {
   1: { code: "GSE-TH", name: "GSE tiller handle", short: "Trax GSE",
        protocol: () => import("./protocol/gse-v1.js"), dashboard: () => import("./dashboards/gse.js"),
        nameMatch: /^(TraxGSE|Trax GSE)\b/i },
-  // 2: X2, 3: Rhino, ... — add a protocol/<code>-v<n>.js and dashboards/<code>.js and list them here.
+  2: { code: "X2-DM", name: "X2 dual-motor", short: "Trax X2",
+       protocol: () => import("./protocol/x2-v1.js"), dashboard: () => import("./dashboards/x2.js"),
+       nameMatch: /^(TraxX2|Trax X2|TraxDM)\b/i },
+  // 3: Rhino, ... — add a protocol/<code>-v<n>.js and dashboards/<code>.js and list them here.
 };
 export const UNKNOWN = { code: "?", name: "Unknown Trax machine", short: "Trax",
                          protocol: null, dashboard: () => import("./dashboards/generic.js") };

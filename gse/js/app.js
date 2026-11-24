@@ -18,6 +18,7 @@ let proto = null;               // active protocol module (parseLine, SETTINGS, 
 let dash = null;                // active dashboard module
 let identity = null;            // from the ID line (or a name-based guess)
 let idRequested = false;
+let idPendingUntil = 0;         // telemetry is held back until the ID reply, or this time
 
 // ---------------------------------------------------------------- helpers
 function setLink(on, label) {
@@ -52,13 +53,15 @@ async function useProduct(info, id) {
   // except those that own their own visibility (data-keep-hidden: the drive
   // overlay, the fault alert). Force-showing them put the phone straight
   // into the drive screen on load (Bluefy, 2026-10-21).
+  // The modules load first: while they do, the previous dashboard is still
+  // the one receiving lines, and it may un-hide its own elements again.
+  const [p, d] = await Promise.all([info.protocol ? info.protocol() : null, info.dashboard()]);
+  if (dash && dash !== d) { try { dash.unmount(); } catch (e) {} }
+  proto = p; dash = d;
   document.querySelectorAll("[data-dash]").forEach((el) => {
     if (el.dataset.dash !== key) el.hidden = true;
     else if (!("keepHidden" in el.dataset)) el.hidden = false;
   });
-  const [p, d] = await Promise.all([info.protocol ? info.protocol() : null, info.dashboard()]);
-  if (dash && dash !== d) { try { dash.unmount(); } catch (e) {} }
-  proto = p; dash = d;
   $("cfg").replaceChildren(); $("fields") && $("fields").replaceChildren();
   dash.mount({ ...ctx, identity: id });
   $("settings-card").hidden = !proto || !proto.SETTINGS;
@@ -197,9 +200,14 @@ function onLine(line) {
   if (id) { consoleLine(line); onIdentity(id); return; }
   if (!proto) { consoleLine(line); if (dash && dash.onLine) dash.onLine(line); return; }
   const { kind, data } = proto.parseLine(line);
-  if (kind !== "tlm") consoleLine(line, kind === "err" ? "err" : "");
+  // High-rate line kinds a product declares quiet (QUIET_KINDS) stay out of the console, like TLM.
+  if (kind !== "tlm" && !(proto.QUIET_KINDS || []).includes(kind)) consoleLine(line, kind === "err" ? "err" : "");
   switch (kind) {
     case "tlm":
+      // Just connected and the unit has not said what it is yet: its telemetry
+      // may belong to another product's protocol. Wait for the ID reply
+      // (boards too old to have one answer ERR,UNKNOWN,ID at once).
+      if (!identity && performance.now() < idPendingUntil) break;
       if (lastSeq >= 0 && data.seq !== lastSeq + 1) lost += data.seq - lastSeq - 1;
       lastSeq = data.seq; tlmCount++;
       dash.render(data);
@@ -207,6 +215,14 @@ function onLine(line) {
     case "evt":
       if (data.kind === "IN" && !advanced) break;
       if (data.kind === "FAULT" || data.kind === "WARN") { addEvent(data.kind, `${data.title} — ${data.text}`); requestFaults(); }
+      else if (data.kind === "CFG") {
+        // A confirmed setting (needs the unit's button, used after a restart): b = "key=value".
+        const key = String(data.b || "").split("=")[0];
+        const text = { pending: "press the unit's power button to confirm", staged: "stored — restart the unit to apply",
+                       timeout: "not confirmed in time", cancelled: "cancelled", nvs_fail: "could not be stored" }[data.a] || data.a;
+        settingStatus(key, text, data.a === "staged" ? "ok" : data.a === "pending" ? "" : "bad");
+        if (!(dash.onEvent && dash.onEvent(data))) addEvent("CFG", `${key}: ${text}`);
+      }
       else if (dash.onEvent && dash.onEvent(data)) break;
       else addEvent(data.kind, data.a + (data.b ? " " + data.b : ""));
       break;
@@ -218,6 +234,8 @@ function onLine(line) {
       if (data.what === "FAULTS" && $("faults").children.length === 0) $("faults").innerHTML = `<li class="muted">No stored faults.</li>`;
       if (data.what === "CFGSET") { onCfg(data.args[0], Number(data.args[1])); settingStatus(data.args[0], "saved", "ok"); }
       if (data.what === "CFGRESET") addEvent("CFG", "Settings reset to defaults");
+      if (data.what === "CFGSTAGED") settingStatus(data.args[0], "stored — restart the unit to apply", "ok");
+      if (data.what === "CFGPEND") settingStatus(data.args[0], "press the unit's power button to confirm", "");
       if (data.what === "NICK" && identity) { identity.nick = data.args.join(","); units.remember(identity); renderIdentity(); addEvent("UNIT", identity.nick ? `Unit renamed to "${identity.nick}"` : "Unit name cleared"); }
       break;
     case "err":
@@ -231,11 +249,15 @@ function onLine(line) {
     case "unknown":
       if (dash && dash.onLine) dash.onLine(line);
       break;
+    default:
+      // A product-specific line kind (e.g. the X2's DRV): the dashboard owns it.
+      if (dash && dash.onData) dash.onData(kind, data);
+      break;
   }
 }
 function onConnected(s) {
   requestFaults(); s.send("CFGGET"); s.send("LINK");
-  if (!idRequested) { idRequested = true; s.send("ID"); }
+  if (!idRequested) { idRequested = true; idPendingUntil = performance.now() + 1500; s.send("ID"); }
 }
 
 // ---------------------------------------------------------------- sources
@@ -277,7 +299,8 @@ $("chk-log").onchange = (e) => src && src.setLogging && src.setLogging(e.target.
 document.querySelectorAll(".sim").forEach((b) => { b.onclick = () => send("SIM," + b.dataset.s); });
 $("cmdform").onsubmit = (e) => { e.preventDefault(); const t = $("cmd").value.trim(); if (t) send(t); $("cmd").value = ""; };
 
-setInterval(() => { const dt = (performance.now() - rateT0) / 1000; $("rate").textContent = `${(tlmCount / dt).toFixed(1)} Hz · lost ${lost}`; tlmCount = 0; rateT0 = performance.now(); }, 2000);
+setInterval(() => { const dt = (performance.now() - rateT0) / 1000; const rateText = `${(tlmCount / dt).toFixed(1)} Hz · lost ${lost}`; $("rate").textContent = rateText;
+  document.querySelectorAll("[data-rate]").forEach((el) => { el.textContent = rateText; }); tlmCount = 0; rateT0 = performance.now(); }, 2000);
 
 // Default dashboard until the unit identifies itself: the GSE tiller handle
 // (boards flashed before the ID line existed only ever speak GSE v1).
