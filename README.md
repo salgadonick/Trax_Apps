@@ -11,7 +11,15 @@ publishes here with a script. Do not edit the app folders in this repo.
 
 | App | URL | Source | Machines |
 |---|---|---|---|
-| GSE tiller handle | [`gse/`](https://salgadonick.github.io/Trax_Apps/gse/) | `Single-Motor-Motherboard` → `GSE_logicBoard/TillerHandle_Code/clients/web` | GSE tugs with the Trax tiller-handle logic board. The same app recognises every Trax unit from its `ID` line and loads the matching dashboard, so it is the one to install for any machine until a machine ships with its own. |
+| Trax machine app | [`gse/`](https://salgadonick.github.io/Trax_Apps/gse/) | `Single-Motor-Motherboard` → `GSE_logicBoard/TillerHandle_Code/clients/web` | GSE tugs with the Trax tiller-handle logic board, and X2 dual-motor machines with the X2 logic board. The app recognises the unit from its `ID` line and loads the matching dashboard, so it is the one to install for any machine until a machine ships with its own. |
+
+The folder is named `gse/` because the GSE tug was the first machine; the URL
+stays the same so installed home-screen apps keep working.
+
+| Machine | Dashboard | Firmware and protocol |
+|---|---|---|
+| GSE tug (product 1) | status, battery, phone control of the tiller handle | `Single-Motor-Motherboard` → `GSE_logicBoard/TillerHandle_Code` |
+| X2 dual-motor (product 2) | who is driving, both tracks, wheel speed and drive assist, battery, phone control in RC-car or tank style | `Remote-Controllers` → `Dual-Motor/code/ESP32-C6` (`x2_receive`, `docs/X2_PROTOCOL.md`) |
 
 ## Opening an app
 
@@ -31,7 +39,8 @@ Trax icon and works offline once loaded.
 ## Pairing a unit
 
 Control functions are only accepted from a paired phone. On the machine,
-triple-press the tiller power button: the status light blinks slowly for
+triple-press the unit's power button (on a GSE tug it is on the tiller
+handle): the status light blinks slowly for
 60 seconds. In the app, request control; accept the pairing prompt the
 phone shows; request again. The pairing is remembered on both sides.
 
