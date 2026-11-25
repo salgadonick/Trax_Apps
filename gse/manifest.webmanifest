@@ -1,7 +1,7 @@
 {
-  "name": "Trax GSE",
-  "short_name": "Trax GSE",
-  "description": "Status, battery and remote control for the Trax GSE tiller handle",
+  "name": "Trax",
+  "short_name": "Trax",
+  "description": "Status, battery and phone control for Trax machines (GSE tiller handle, X2 dual-motor)",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

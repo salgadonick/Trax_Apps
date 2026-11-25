@@ -417,9 +417,17 @@ function wire() {
   // Backgrounded (phone locked, app switched): timers stop, so frames stop. A
   // STOP would need keep-alive frames and would time out into a link loss;
   // release cleanly instead. Coming back means requesting control again.
-  document.addEventListener("visibilitychange", () => {
-    if (document.hidden && (srcNow === 2 || srcNow === 3 || srcNow === 4)) { setStick(0); stopRc(); send("REMOTE,REL"); closeDrive(); }
-  });
+  // Also a closed or frozen page and a window that lost focus (a call screen,
+  // a system dialog): same release.
+  const interrupted = (why) => {
+    if (!(srcNow === 2 || srcNow === 3 || srcNow === 4) || !rc.armed) return;
+    setStick(0); stopRc(); send("REMOTE,REL"); closeDrive();
+    remoteMsg(`Control released: ${why}. Request it again when ready.`);
+  };
+  document.addEventListener("visibilitychange", () => { if (document.hidden) interrupted("the app went to the background"); });
+  window.addEventListener("pagehide", () => interrupted("the page was closed"));
+  document.addEventListener("freeze", () => interrupted("the page was frozen"));
+  window.addEventListener("blur", () => interrupted("the app lost focus"));
   $("thr-limit").oninput = (e) => { $("thr-limit-v").textContent = e.target.value + " %"; };
   $("thr-limit").onchange = (e) => send(`CFGSET,thr_limit,${e.target.value}`);
 }

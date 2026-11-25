@@ -5,13 +5,14 @@ Published web apps for Trax machines, served by GitHub Pages at
 site that talks to its machine over Bluetooth Low Energy from the browser
 (Web Bluetooth). Nothing here needs a server or an account.
 
-This repo is a **published copy**. The source of truth for each app is the
-machine's firmware repository, which carries the matching protocol and
-publishes here with a script. Do not edit the app folders in this repo.
+This repo is a **published copy**. The source of truth is the shared
+`Trax_Bridge` repository (`web/`), which publishes here with a script; the
+protocol each dashboard speaks is documented in that machine's firmware
+repository. Do not edit the app folders in this repo.
 
 | App | URL | Source | Machines |
 |---|---|---|---|
-| Trax machine app | [`gse/`](https://salgadonick.github.io/Trax_Apps/gse/) | `Single-Motor-Motherboard` → `GSE_logicBoard/TillerHandle_Code/clients/web` | GSE tugs with the Trax tiller-handle logic board, and X2 dual-motor machines with the X2 logic board. The app recognises the unit from its `ID` line and loads the matching dashboard, so it is the one to install for any machine until a machine ships with its own. |
+| Trax machine app | [`gse/`](https://salgadonick.github.io/Trax_Apps/gse/) | `Trax_Bridge` → `web/` | GSE tugs with the Trax tiller-handle logic board, and X2 dual-motor machines with the X2 logic board. The app recognises the unit from its `ID` line and loads the matching dashboard, so it is the one to install for any machine until a machine ships with its own. |
 
 The folder is named `gse/` because the GSE tug was the first machine; the URL
 stays the same so installed home-screen apps keep working.
@@ -51,7 +52,7 @@ list is a harmless ghost and can be removed.
 
 ## Publishing (maintainers)
 
-From the firmware repo, after committing changes under `clients/web`:
+From the `Trax_Bridge` repo, after committing changes under `web/`:
 
 ```
 powershell -ExecutionPolicy Bypass -File tools\publish_web.ps1
@@ -59,5 +60,5 @@ powershell -ExecutionPolicy Bypass -File tools\publish_web.ps1
 
 The script clones or updates this repo, replaces the app folder, copies the
 landing page and this README from `tools/trax_apps/`, commits with the
-firmware commit hash, and pushes `main`. Pages rebuilds within a minute.
+`Trax_Bridge` commit hash, and pushes `main`. Pages rebuilds within a minute.
 `-EnablePages` turns Pages on for a freshly created repo.

@@ -109,6 +109,10 @@ async function onIdentity(id) {
     const p = id.info.protocol ? await id.info.protocol() : null;
     if (p && p.TLM_VERSION !== id.tlmVersion) { addEvent("APP", `This unit speaks protocol v${id.tlmVersion}; this app reads v${p.TLM_VERSION}. Update the app.`); await useProduct(UNKNOWN, id); }
     else await useProduct(id.info, id);
+    // The listing requested at connect was parsed with the previous product's
+    // fault table (an X2 after a GSE showed "Unknown fault 24", 2026-11-25), or
+    // dropped while no product was loaded. Ask again with the right table.
+    if (proto) requestFaults(true);
   }
   addEvent("UNIT", `${displayName(id)} · ${id.info.name} · firmware ${id.fw} · serial ${id.serial}`);
 }
@@ -173,8 +177,8 @@ function onCfg(key, value) {
 
 // ---------------------------------------------------------------- faults
 let faultsPending = false;
-function requestFaults() {
-  if (!src || faultsPending) return;               // one request in flight at a time
+function requestFaults(force = false) {
+  if (!src || (faultsPending && !force)) return;   // one request in flight at a time
   faultsPending = true; setTimeout(() => { faultsPending = false; }, 1500);
   send("FAULTS");
 }
@@ -231,7 +235,9 @@ function onLine(line) {
     case "link": if (dash && dash.onLinkStatus) dash.onLinkStatus(data, srcKind); break;
     case "ack":
       if (data.what === "FAULTS" && data.args[0] === "CLR") $("faults").replaceChildren();
-      if (data.what === "FAULTS" && $("faults").children.length === 0) $("faults").innerHTML = `<li class="muted">No stored faults.</li>`;
+      // ACK,FAULTS,<n>,<boot>: an empty store never sends a row, so say so (the "Connect and refresh"
+      // placeholder counts as a child; checking children.length left it in place, simulator 2026-11-25).
+      if (data.what === "FAULTS" && data.args[0] !== "CLR" && Number(data.args[0]) === 0) $("faults").innerHTML = `<li class="muted">No stored faults.</li>`;
       if (data.what === "CFGSET") { onCfg(data.args[0], Number(data.args[1])); settingStatus(data.args[0], "saved", "ok"); }
       if (data.what === "CFGRESET") addEvent("CFG", "Settings reset to defaults");
       if (data.what === "CFGSTAGED") settingStatus(data.args[0], "stored — restart the unit to apply", "ok");

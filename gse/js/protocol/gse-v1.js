@@ -167,6 +167,11 @@ export const STATE_TEXT = {
 };
 
 const f = (code) => FAULTS[code] || [`FAULT_${code}`, `Fault ${code}`, `Unknown fault ${code}`, false];
+// Stored-fault row: title / text from the table, or from the firmware's own
+// name when this app version does not know the code (never "Unknown fault").
+const fltTitleText = (code, name) => FAULTS[code] ? [faultTitle(code), faultText(code)]
+  : [name ? name.toLowerCase().replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()) : `Fault ${code}`,
+     `Fault ${code}${name ? " (" + name + ")" : ""}: this app version has no description for it. Update the app.`];
 export function faultName(code)  { return f(code)[0]; }
 export function faultTitle(code) { return f(code)[1]; }
 export function faultText(code)  { return f(code)[2]; }
@@ -235,8 +240,9 @@ export function parseLine(line) {
         return { kind: "evt", data: d };
       }
       case "CFG": return { kind: "cfg", data: { key: p[1], value: Number(p[2]) } };
-      case "FLT": return { kind: "flt", data: { i: +p[1], code: +p[2], name: p[3], boot: +p[4], uptime: +p[5],
-                                                 vpack: +p[6], detail: +p[7], title: faultTitle(+p[2]), text: faultText(+p[2]) } };
+      case "FLT": { const [title, text] = fltTitleText(+p[2], p[3]);
+        return { kind: "flt", data: { i: +p[1], code: +p[2], name: p[3], boot: +p[4], uptime: +p[5],
+                                       vpack: +p[6], detail: +p[7], title, text } }; }
       case "ACK": return { kind: "ack", data: { what: p[1], args: p.slice(2) } };
       case "LINK": return { kind: "link", data: { bonded: p[1] === "1", hasBond: p[2] === "1", pairing: p[3] === "1" } };
       case "ERR": return { kind: "err", data: { what: p[1], args: p.slice(2), reason: p.slice(1).join(",") } };

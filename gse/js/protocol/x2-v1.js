@@ -97,7 +97,7 @@ export const J20_NAMES = ["unpowered", "ready", "not ready", "indeterminate"];
 export const DIR_NAMES = ["stopped", "forward", "reverse"];
 export const SRC_NAMES = ["radio remote", "phone requested", "phone armed", "phone link lost", "phone stopped"];
 export const CTL_NAMES = ["nobody", "Trax handheld", "Kar-Tech remote", "phone"];
-export const LINK_NAMES = ["no radio fitted", "not paired", "searching", "linked", "e-stop pressed on the handheld", "pairing"];
+export const LINK_NAMES = ["no radio fitted", "not paired", "searching", "linked", "e-stop pressed on the handheld", "pairing", "off (Kar-Tech unit)"];
 export const PID_NAMES = ["off", "active", "standing by", "sensor fault"];
 export const TRAILER_NAMES = ["unknown", "none", "connected", "open circuit"];
 
@@ -111,7 +111,8 @@ export const FAULTS = {
   1:  ["ESTOP_PRESSED", "Emergency stop", "The hard-wired emergency stop loop is open: the e-stop is pressed, or its wiring or fuse is open. Release it, then Restart.", false],
   2:  ["CURTIS_J20_FAULT", "Motor controller A fault", "Motor controller A reported a fault while running.", false],
   3:  ["J20_TIMEOUT_AT_START", "Motor controller A not ready", "Motor controller A did not come ready at start-up.", false],
-  4:  ["RAMP_TIMEOUT_AT_START", "Motor controllers not powering up", "No pre-charge seen on the controller bus after key-on. Check the controller connections.", false],
+  4:  ["RAMP_TIMEOUT_AT_START", "Motor controller A not powering up", "No pre-charge seen on controller A's bus after key-on. Check the controller connections.", false],
+  29: ["RAMP_TIMEOUT_AT_START_B", "Motor controller B not powering up", "No pre-charge seen on controller B's bus after key-on. Check the controller connections.", false],
   5:  ["THROTTLE_NONZERO_AT_BOOT", "Remote not at zero at start-up", "The radio remote's throttle was not at zero the first time the unit read it after starting: a stick or lever was being held, a Kar-Tech lever wire is open or shorted (an open wire reads about 0.44 V), or the control does not rest at zero. The unit will not run because the remote's zero cannot be established. Let go of the controls, check the lever wiring and that the controls rest at centre, then Restart.", false],
   9:  ["UNDERVOLT_PACK", "Low battery", "The battery is too low to run. Charge it.", false],
   10: ["TB_STUCK_ON", "Trailer brake stuck on", "Trailer-brake current with the brake commanded off.", false],
@@ -127,7 +128,8 @@ export const FAULTS = {
   21: ["INT_WDT_RESET", "Firmware interrupt stall", "Interrupts were blocked too long while running.", false],
   22: ["SW_RESET_WHILE_LIVE", "Firmware restarted while running", "The firmware restarted itself while the motor controllers were live.", false],
   23: ["BRAKE_DISCONNECTED", "Motor brake A not connected", "At start-up the brake line of controller A read disconnected: the brake coil is unplugged or open. Check the connector, then Restart.", false],
-  24: ["RELAY_COIL_OPEN", "Power relay not drawing current", "A power relay is switched on with the e-stop loop closed, but its coil draws no current: relay unplugged, coil open, or the loop fuse has tripped.", false],
+  24: ["RELAY_COIL_OPEN_A", "Power relay A not drawing current", "Power relay A (motor controller A) is switched on with the e-stop loop closed, but its coil draws no current: relay unplugged, coil open, or the loop fuse has tripped.", false],
+  28: ["RELAY_COIL_OPEN_B", "Power relay B not drawing current", "Power relay B (motor controller B) is switched on with the e-stop loop closed, but its coil draws no current: relay unplugged, coil open, or the loop fuse has tripped.", false],
   25: ["CURTIS_J20_FAULT_B", "Motor controller B fault", "Motor controller B reported a fault while running.", false],
   26: ["J20_TIMEOUT_AT_START_B", "Motor controller B not ready", "Motor controller B did not come ready at start-up.", false],
   27: ["BRAKE_DISCONNECTED_B", "Motor brake B not connected", "At start-up the brake line of controller B read disconnected: the brake coil is unplugged or open. Check the connector, then Restart.", false],
@@ -147,8 +149,10 @@ export const FAULTS = {
   45: ["MOTOR_CURRENT_LIMITED", "Motor current limited", "The board current reached the limit, so the unit is holding the throttle down.", true],
   46: ["WHEEL_SENSOR_LEFT", "Left wheel sensor not reading", "The left track is being driven but its speed sensor shows no pulses. The drive assist is off until it reads again; the unit still drives.", true],
   47: ["WHEEL_SENSOR_RIGHT", "Right wheel sensor not reading", "The right track is being driven but its speed sensor shows no pulses. The drive assist is off until it reads again; the unit still drives.", true],
-  48: ["RELAY_COIL_NO_CURRENT", "Power relay not drawing current", "A power relay is switched on with the e-stop loop closed, but its coil draws no current. Reported only (relay check is set to monitor).", true],
-  49: ["KARTECH_SIGNAL", "Kar-Tech lever signal out of range", "A Kar-Tech lever signal is outside its valid band (open or shorted wire, or the receiver is off). Both tracks are held at rest until both levers read in range and are back at neutral.", true],
+  48: ["RELAY_COIL_NO_CURRENT_A", "Power relay A not drawing current", "Power relay A (motor controller A) is switched on with the e-stop loop closed, but its coil draws no current. Reported only (relay check is set to monitor).", true],
+  52: ["RELAY_COIL_NO_CURRENT_B", "Power relay B not drawing current", "Power relay B (motor controller B) is switched on with the e-stop loop closed, but its coil draws no current. Reported only (relay check is set to monitor).", true],
+  49: ["KARTECH_SIGNAL", "Kar-Tech left lever signal out of range", "The Kar-Tech LEFT lever signal is outside its valid band (open or shorted wire, or the receiver is off). Both tracks are held at rest until both levers read in range and are back at neutral.", true],
+  53: ["KARTECH_SIGNAL_R", "Kar-Tech right lever signal out of range", "The Kar-Tech RIGHT lever signal is outside its valid band (open or shorted wire, or the receiver is off). Both tracks are held at rest until both levers read in range and are back at neutral.", true],
   51: ["TRACK_MISMATCH", "Tracks differ more than wear explains", "The drive assist's learned trim has reached its limit: one track is consistently slower than the other for the same throttle. Check for a dragging brake, a soft or worn tyre, or a weak motor on the slow side. The unit still drives.", true],
   50: ["RADIO_ESTOP", "E-stop pressed on the radio remote", "A radio remote asserted its e-stop. The unit holds at rest until it is released and the controls are back at neutral.", true],
 };
@@ -157,8 +161,8 @@ export const FAULTS = {
 export const SETTINGS = {
   // ---- Control ----
   ctrl_src:      { label: "Who may drive", cat: "Control", unit: "", kind: "enum", help: "Both: the radio remote drives, and the phone can take over on request (bench). Radio remote only: the phone can watch but not drive. Phone only: radio commands are ignored; a radio e-stop still stops the unit.", enum: ["Both (bench)", "Radio remote only", "Phone only"] },
-  radio_src:     { label: "Radio remote type", cat: "Control", unit: "", kind: "enumv", help: "Which radio remote this unit is built for. Trax handheld: RC-car style, the left stick drives forward and reverse and the right stick rotates. Kar-Tech: tank style, the left and right levers are the left and right tracks. The remote that is not selected is not read at all. Changing it needs one press of the unit's power button to confirm, and the unit must then be switched off and on; it holds at rest until that is done.", values: [[1, "Trax handheld (RC-car style)"], [2, "Kar-Tech receiver (tank style)"]] },
-  app_style:     { label: "Phone control style", cat: "Control", unit: "", kind: "enum", help: "What the phone's drive screen does. RC car: the left stick drives forward and reverse, the right stick rotates (like the Trax handheld). Tank: the left and right levers are the left and right tracks (like the Kar-Tech remote). Changing it needs one press of the unit's power button to confirm, and the unit must then be switched off and on; it holds at rest until that is done.", enum: ["RC car (drive + rotation)", "Tank (left + right track)"] },
+  radio_src:     { label: "Radio remote type", cat: "Control", unit: "", kind: "enumv", help: "Which radio remote this unit is built for. Trax handheld: RC-car style, the left stick drives forward and reverse and the right stick rotates. Kar-Tech: tank style, the left and right levers are the left and right tracks. The remote that is not selected is not read at all; a Kar-Tech unit switches the handheld radio off. Changing it needs one press of the unit's power button to confirm, and the unit must then be switched off and on; it parks with its outputs safe until that is done.", values: [[1, "Trax handheld (RC-car style)"], [2, "Kar-Tech receiver (tank style)"]] },
+  app_style:     { label: "Phone control style", cat: "Control", unit: "", kind: "enum", help: "What the phone's drive screen does. RC car: the left stick drives forward and reverse, the right stick rotates (like the Trax handheld). Tank: the left and right levers are the left and right tracks (like the Kar-Tech remote). Changing it needs one press of the unit's power button to confirm, and the unit must then be switched off and on; it parks with its outputs safe until that is done.", enum: ["RC car (drive + rotation)", "Tank (left + right track)"] },
   radio_lost_ms: { label: "Handheld link timeout", cat: "Control", unit: "ms", kind: "int", help: "No valid frame from the Trax handheld for this long and the unit comes to rest." },
   app_arm_press: { label: "Phone needs a button press", cat: "Control", unit: "", kind: "bool", help: "On: after the phone asks for control, someone must press the unit's power button once to confirm they are at the machine. Off (bench only): the phone is armed at once." },
   remote_arm_s:  { label: "Phone request window", cat: "Control", unit: "s", kind: "int", help: "How long the unit waits for that button press." },
@@ -258,6 +262,11 @@ export const STATE_TEXT = {
 };
 
 const f = (code) => FAULTS[code] || [`FAULT_${code}`, `Fault ${code}`, `Unknown fault ${code}`, false];
+// Stored-fault row: title / text from the table, or from the firmware's own
+// name when this app version does not know the code (never "Unknown fault").
+const fltTitleText = (code, name) => FAULTS[code] ? [faultTitle(code), faultText(code)]
+  : [name ? name.toLowerCase().replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()) : `Fault ${code}`,
+     `Fault ${code}${name ? " (" + name + ")" : ""}: this app version has no description for it. Update the app.`];
 export function faultName(code)  { return f(code)[0]; }
 export function faultTitle(code) { return f(code)[1]; }
 export function faultText(code)  { return f(code)[2]; }
@@ -317,8 +326,9 @@ export function parseLine(line) {
         return { kind: "evt", data: d };
       }
       case "CFG": return { kind: "cfg", data: { key: p[1], value: Number(p[2]) } };
-      case "FLT": return { kind: "flt", data: { i: +p[1], code: +p[2], name: p[3], boot: +p[4], uptime: +p[5],
-                                                 vpack: +p[6], detail: +p[7], title: faultTitle(+p[2]), text: faultText(+p[2]) } };
+      case "FLT": { const [title, text] = fltTitleText(+p[2], p[3]);
+        return { kind: "flt", data: { i: +p[1], code: +p[2], name: p[3], boot: +p[4], uptime: +p[5],
+                                       vpack: +p[6], detail: +p[7], title, text } }; }
       case "ACK": return { kind: "ack", data: { what: p[1], args: p.slice(2) } };
       case "LINK": return { kind: "link", data: { bonded: p[1] === "1", hasBond: p[2] === "1", pairing: p[3] === "1" } };
       case "ERR": return { kind: "err", data: { what: p[1], args: p.slice(2), reason: p.slice(1).join(",") } };

@@ -93,7 +93,7 @@ function renderCfgNotice() {
   } else if (restart) {
     box.hidden = false;
     el("cfg-notice-title").textContent = "Restart required";
-    el("cfg-notice-text").textContent = "A control setting was changed and stored. The unit is holding at rest and will not drive until it has been switched off and on; the new setting is used from then on.";
+    el("cfg-notice-text").textContent = "A control setting was changed and stored. The unit is parked with its outputs safe (power relays open) and will not drive until it has been switched off and on; the new setting is used from then on.";
   } else box.hidden = true;
   el("btn-cfg-cancel").hidden = !cfgPend;
   el("btn-cfg-sim-press").hidden = !(cfgPend && simUi());
@@ -235,8 +235,8 @@ export function render(d) {
   el("link").textContent = d.linkName + (d.link === 3 ? ` · ${d.lq}/s` : "");
   el("link").className = d.link === 4 ? "bad" : "";
   // Only the remote this unit is built for is shown (CFG radio_src): the other
-  // one is not read. A paired handheld still shows on a Kar-Tech unit while
-  // it is in range, because its e-stop still counts.
+  // one is not read. A Kar-Tech unit has its handheld radio switched off; the
+  // link row says so (code 6) rather than hiding it.
   const ktUnit = (cfg.radio_src ?? 1) === 2;
   // An open lever input rests at 0.44 V (the board's bias network): inside the
   // valid band, so it is named here rather than left looking like a command.
@@ -423,7 +423,12 @@ function drawChart() {
 // ---------------------------------------------------------------- phone control
 // style "rc": a = drive (left stick, + forward), b = rotation (right stick, + right).
 // style "tank": a = left track, b = right track. Both -100..100; pot 0..100; btns = BTN bits.
-const rc = { armed: false, style: "rc", a: 0, b: 0, pot: 100, btns: 0, seq: 0, timer: null };
+const rc = { armed: false, style: "rc", a: 0, b: 0, pot: 100, btns: 0, seq: 0, timer: null, tLast: 0 };
+// A frame this late means the browser was busy (a call screen, a notification
+// shade, a system dialog) longer than the unit's deadman (rc_lost_ms, 250 ms by
+// default): the unit is LOST and ignores frames until Resume. Whatever the
+// thumbs were doing then is not a command any more.
+const RC_STALL_MS = 500;
 let srcNow = 0;
 function remoteUi(srcCode) {
   srcNow = srcCode;
@@ -464,11 +469,21 @@ function driveBlock() {
   el("btn-dv-block-release").hidden = fault;
   el("btn-dv-block-close").hidden = !fault;
 }
-function startRc() { rc.armed = true; centre(); rc.timer = setInterval(sendRc, 100); }
+function startRc() { rc.armed = true; rc.tLast = 0; centre(); rc.timer = setInterval(sendRc, 100); }
 function stopRc() { rc.armed = false; clearInterval(rc.timer); rc.timer = null; if ($) centre(); }
 function sendRc() {
   if (!rc.armed) return;
+  const now = performance.now();
+  if (rc.tLast && now - rc.tLast > RC_STALL_MS) letGo();   // see RC_STALL_MS: re-touch every control
+  rc.tLast = now;
   ctx.sendRaw(`RC,${rc.seq++ & 0xffff},${rc.style === "tank" ? 1 : 0},${rc.a},${rc.b},${rc.pot},${rc.btns}`);
+}
+// Drop every control to neutral and end its touch, so a thumb that is still
+// on the screen has to lift and press again before it commands anything.
+function letGo() {
+  for (const A of [ax.left, ax.rot, ax.right]) if (A) A.node.classList.remove("active");
+  document.querySelectorAll("#drive .active").forEach((n) => n.classList.remove("active"));
+  centre();
 }
 
 // ---- full-screen drive mode ----
@@ -638,11 +653,22 @@ function wire() {
   el("btn-dv-block-release").onclick = () => { send("REMOTE,REL"); closeDrive(); };
   el("btn-dv-block-close").onclick = closeDrive;
   el("btn-dv-release").onclick = () => { send("REMOTE,REL"); closeDrive(); };
-  // Backgrounded (phone locked, app switched): timers stop, so frames stop.
-  // Release cleanly instead of timing out into a link loss.
-  document.addEventListener("visibilitychange", () => {
-    if (document.hidden && (srcNow === 2 || srcNow === 3 || srcNow === 4) && rc.armed) { centre(); stopRc(); send("REMOTE,REL"); closeDrive(); }
-  });
+  // Anything that takes the operator's eyes or thumbs off the controls ends
+  // the session: a phone call or a tapped notification (the page goes hidden),
+  // the phone locked or the app switched (timers stop, so frames would stop),
+  // the tab closed or frozen, the window losing focus. Release cleanly rather
+  // than time out into a link loss; the unit's own deadman (rc_lost_ms, then
+  // fault 17 if it was moving) covers the cases where this message never
+  // leaves the phone. Coming back means requesting control again.
+  const interrupted = (why) => {
+    if (!(srcNow === 2 || srcNow === 3 || srcNow === 4) || !rc.armed) return;
+    letGo(); stopRc(); send("REMOTE,REL"); closeDrive();
+    remoteMsg(`Control released: ${why}. Request it again when ready.`);
+  };
+  document.addEventListener("visibilitychange", () => { if (document.hidden) interrupted("the app went to the background"); });
+  window.addEventListener("pagehide", () => interrupted("the page was closed"));
+  document.addEventListener("freeze", () => interrupted("the page was frozen"));
+  window.addEventListener("blur", () => interrupted("the app lost focus"));
   el("thr-limit").oninput = (e) => { el("thr-limit-v").textContent = e.target.value + " %"; };
   el("thr-limit").onchange = (e) => send(`CFGSET,thr_limit,${e.target.value}`);
   el("pid-en").onchange = (e) => send(`CFGSET,pid_en,${e.target.checked ? 1 : 0}`);
