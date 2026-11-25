@@ -12,10 +12,12 @@ repository. Do not edit the app folders in this repo.
 
 | App | URL | Source | Machines |
 |---|---|---|---|
-| Trax machine app | [`gse/`](https://salgadonick.github.io/Trax_Apps/gse/) | `Trax_Bridge` → `web/` | GSE tugs with the Trax tiller-handle logic board, and X2 dual-motor machines with the X2 logic board. The app recognises the unit from its `ID` line and loads the matching dashboard, so it is the one to install for any machine until a machine ships with its own. |
+| Trax machine app | [`app/`](https://salgadonick.github.io/Trax_Apps/app/) | `Trax_Bridge` → `web/` | GSE tugs with the Trax tiller-handle logic board, and X2 dual-motor machines with the X2 logic board. The app recognises the unit from its `ID` line and loads the matching dashboard, so it is the one to install for any machine until a machine ships with its own. |
 
-The folder is named `gse/` because the GSE tug was the first machine; the URL
-stays the same so installed home-screen apps keep working.
+The app lived at `gse/` first (the GSE tug was the first machine). That
+address now redirects to `app/`; a home-screen app installed from the old
+address still opens but shows the browser bar, so remove it and add the new
+address once.
 
 | Machine | Dashboard | Firmware and protocol |
 |---|---|---|
