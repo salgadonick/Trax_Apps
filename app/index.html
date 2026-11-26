@@ -218,21 +218,30 @@ if (!Element.prototype.replaceChildren) Element.prototype.replaceChildren = func
         <div><span>B2</span><b id="x2-b2">—</b><i id="x2-b2bar"></i></div>
         <div><span>B3</span><b id="x2-b3">—</b><i id="x2-b3bar"></i></div>
       </div>
-      <div class="row"><span>Board current</span><b id="x2-i-board">—</b></div>
+      <div class="row" id="x2-i-board-row"><span>Machine current</span><b id="x2-i-board">—</b></div>
       <div class="row" id="x2-temp-row" hidden><span>Board temperature</span><b id="x2-temp">—</b></div>
       <div class="badges" id="x2-batt-badges"></div>
     </div>
 
     <div class="card">
       <div class="card-h">Machine</div>
-      <div class="row"><span>Controller A</span><b id="x2-mc-a">—</b></div>
-      <div class="row"><span>Controller B</span><b id="x2-mc-b">—</b></div>
-      <div class="row"><span>Motor brakes</span><b id="x2-brakes">—</b></div>
-      <div class="row"><span>Power relays</span><b id="x2-relays">—</b></div>
-      <div class="row"><span>E-stop loop</span><b id="x2-estop">—</b></div>
+      <div class="row x2-estop-row"><span>E-stop loop</span><b id="x2-estop">—</b></div>
+      <div class="x2-sides">
+        <div class="x2-side"><div class="x2-side-h">Side A</div>
+          <div class="row"><span>Controller</span><b id="x2-mc-a">—</b></div>
+          <div class="row"><span>Contactor</span><b id="x2-relay-a">—</b></div>
+          <div class="row"><span>Brake</span><b id="x2-brake-a">—</b></div>
+        </div>
+        <div class="x2-side"><div class="x2-side-h">Side B</div>
+          <div class="row"><span>Controller</span><b id="x2-mc-b">—</b></div>
+          <div class="row"><span>Contactor</span><b id="x2-relay-b">—</b></div>
+          <div class="row"><span>Brake</span><b id="x2-brake-b">—</b></div>
+        </div>
+      </div>
+      <div class="badges" id="x2-mach-badges"></div>
+      <div class="sub-h">Trailer</div>
       <div class="row"><span>Trailer brake</span><b id="x2-tb">—</b></div>
       <div class="row" id="x2-trailer-row" hidden><span>Trailer</span><b id="x2-trailer">—</b></div>
-      <div class="badges" id="x2-mach-badges"></div>
     </div>
   </section>
 

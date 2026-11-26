@@ -31,7 +31,7 @@ export const TLM_FIELDS = [
   ["v_j20b",  "f",   "Controller B ready line",     "V",  "Motor controllers"],
   ["j20a",    "int", "Controller A ready",          "",   "Motor controllers"],
   ["j20b",    "int", "Controller B ready",          "",   "Motor controllers"],
-  ["i_board", "f",   "Board current",               "A",  "Battery"],
+  ["i_board", "f",   "Machine current",             "A",  "Battery"],
   ["i_tb",    "f",   "Trailer brake current",       "A",  "Trailer"],
   ["in",      "hex", "Input bits",                  "",   "Vehicle"],
   ["valid",   "hex", "Input bits valid",            "",   "Vehicle"],
@@ -82,6 +82,28 @@ export const DRV_FIELDS = [
   ["learn",    "int", "Trim learning",              "",     "Wheel speed"],
 ];
 export const FIELD_CATEGORIES = ["Vehicle", "Control", "Drive", "Wheel speed", "Battery", "Motor controllers", "Trailer"];
+// The advanced "All readings" list, compartmentalised: section -> categories.
+export const READING_GROUPS = [
+  ["Machine state",                 ["Vehicle", "Motor controllers"]],
+  ["Control and drive command",     ["Control", "Drive"]],
+  ["Wheel speed and drive assist",  ["Wheel speed"]],
+  ["Power: battery, machine current, trailer", ["Battery", "Trailer"]],
+];
+// Inputs and outputs by what they belong to (advanced "Inputs and outputs").
+export const INPUT_GROUPS = [
+  ["Safety",   ["estop_open", "kt_estop"]],
+  ["Side A",   ["brake_a", "relay_i_a"]],
+  ["Side B",   ["brake_b", "relay_i_b"]],
+  ["Operator", ["wake", "pair", "speed_sw"]],
+  ["Sensors",  ["temp_alert", "limit1", "limit2"]],
+];
+export const OUTPUT_GROUPS = [
+  ["Power path",       ["shifter", "ksi", "idc", "estop_sig"]],
+  ["Side A",           ["relay_a", "lift_a", "lower_a"]],
+  ["Side B",           ["relay_b", "lift_b", "lower_b"]],
+  ["Drive",            ["fast", "horn"]],
+  ["Trailer and aux",  ["tb_bus", "way7", "aux12", "auxbatt"]],
+];
 
 export const INPUT_NAMES  = ["wake", "temp_alert", "brake_a", "brake_b", "estop_open", "relay_i_a", "relay_i_b",
                              "limit1", "limit2", "kt_estop", "pair", "speed_sw"];
@@ -191,7 +213,7 @@ export const SETTINGS = {
   thr_limit:     { label: "Speed limit", cat: "Drive", unit: "%", kind: "int", help: "A full command maps to this percentage of the motor controllers' input. Stored on the unit." },
   mc_swap:       { label: "Swap left / right controllers", cat: "Drive", unit: "", kind: "bool", help: "Off: controller A is the left track, B the right. On: swapped. Takes effect at the next start, never while the controllers are live." },
   mc_mask:       { label: "Controllers fitted", cat: "Drive", unit: "", kind: "enumv", help: "Which motor controllers are connected. Use one controller only on the bench. Takes effect at the next start, never while the controllers are live.", values: [[1, "A only"], [2, "B only"], [3, "A and B"]] },
-  ilim_a:        { label: "Board current limit", cat: "Drive", unit: "A", kind: "int", help: "While driving, the unit lowers its throttle ceiling to keep the board current at or below this. 0 turns the limiter off." },
+  ilim_a:        { label: "Machine current limit", cat: "Drive", unit: "A", kind: "int", help: "While driving, the unit lowers its throttle ceiling to keep the machine current (the external shunt upstream of both contactors) at or below this. 0 turns the limiter off; it is also off while no shunt is fitted." },
   // ---- Wheel speed and assist ----
   pid_en:        { label: "Drive assist", cat: "Wheel speed", unit: "", kind: "bool", help: "Trim the two throttles from the wheel-speed sensors so the unit drives straight when asked to and holds the commanded ratio in turns." },
   pid_kp_x100:   { label: "Assist: P gain", cat: "Wheel speed", unit: "", kind: "x100", help: "Correction per unit of speed-share error. Higher reacts faster; too high makes the tracks hunt." },
@@ -254,12 +276,19 @@ export const SETTINGS = {
   ilim_ki_x100:  { label: "Current limiter: I gain", cat: "Motor controllers", unit: "", kind: "x100", help: "Fold-back on the accumulated overage." },
   ilim_kd_x1000: { label: "Current limiter: D gain (x1000)", cat: "Motor controllers", unit: "", kind: "int", help: "Spike guard on a fast-rising current." },
   // ---- Calibration ----
-  i_board_zero_mv: { label: "Board current: zero", cat: "Calibration", unit: "mV", kind: "int", help: "Sense-pin voltage at zero board current." },
-  i_board_uohm:    { label: "Board current: shunt", cat: "Calibration", unit: "µΩ", kind: "int", help: "Effective shunt resistance." },
+  i_board_zero_mv: { label: "Machine current: zero", cat: "Calibration", unit: "mV", kind: "int", help: "Sense-pin voltage at zero machine current." },
+  i_board_uohm:    { label: "Machine current: shunt", cat: "Calibration", unit: "µΩ", kind: "int", help: "Effective resistance of the external Kelvin-tapped shunt upstream of both contactors. 0 = no shunt fitted: the machine current is not shown, the current limiter is off and the battery model assumes no load." },
   i_tb_zero_mv:    { label: "Trailer brake current: zero", cat: "Calibration", unit: "mV", kind: "int", help: "0 = measured automatically at every power-up." },
   i_tb_uohm:       { label: "Trailer brake current: shunt", cat: "Calibration", unit: "µΩ", kind: "int", help: "Effective shunt resistance." },
 };
 export const SETTING_CATEGORIES = ["Control", "Drive", "Wheel speed", "Kar-Tech", "Battery", "Trailer", "Power", "Motor controllers", "Calibration"];
+// Shown first in the settings list, outside the categories: the changes that
+// need the unit's power button and a power cycle, or only apply at the next start.
+export const SETTING_TOP = {
+  title: "Machine setup: needs the unit's button and a restart",
+  note: "Radio remote type and phone control style: one press of the unit's power button to confirm, then switch the unit off and on. Controllers fitted / swapped: applied at the next start.",
+  keys: ["radio_src", "app_style", "mc_mask", "mc_swap"],
+};
 for (let i = 0; i <= 10; i++) SETTINGS["thr_cal" + i] = { label: `Throttle pin at ${i * 10} % duty`, cat: "Calibration", unit: "mV", kind: "int", help: `Voltage measured at a controller's throttle pin with BENCH,throttle_a,${Math.round(i * 409.5)}. The firmware inverts this table so requested voltages are exact. One table serves both channels.` };
 
 export const STATE_TEXT = {

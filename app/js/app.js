@@ -175,9 +175,7 @@ function renderSettings() {
   const { SETTINGS, SETTING_CATEGORIES } = proto;
   const box = $("cfg");
   if (!box.children.length) {
-    SETTING_CATEGORIES.forEach((cat) => {
-      const h = document.createElement("div"); h.className = "cat-h"; h.textContent = cat; box.appendChild(h);
-      Object.entries(SETTINGS).filter(([, m]) => m.cat === cat).forEach(([key, m]) => {
+    const settingRow = (key, m) => {
         const row = document.createElement("div"); row.className = "setting"; row.dataset.key = key;
         const lbl = document.createElement("div"); lbl.className = "lbl"; lbl.textContent = m.label;
         const q = document.createElement("span"); q.className = "help"; q.textContent = "?"; q.title = m.help; lbl.appendChild(q);
@@ -196,8 +194,24 @@ function renderSettings() {
         right.append(ctl, unit, st); row.append(lbl, right, btn);
         const desc = document.createElement("div"); desc.className = "desc"; desc.textContent = m.help; desc.hidden = true; row.appendChild(desc);
         q.onclick = () => { desc.hidden = !desc.hidden; };
-        box.appendChild(row);
-      });
+        return row;
+    };
+    // Major changes first (a protocol module's SETTING_TOP: confirmed at the
+    // unit, applied at a restart), then each category as its own section.
+    const top = proto.SETTING_TOP;
+    if (top) {
+      const h = document.createElement("div"); h.className = "cat-h"; h.textContent = top.title; box.appendChild(h);
+      if (top.note) { const n = document.createElement("div"); n.className = "muted small"; n.textContent = top.note; box.appendChild(n); }
+      top.keys.forEach((key) => { if (SETTINGS[key]) box.appendChild(settingRow(key, SETTINGS[key])); });
+    }
+    const inTop = new Set(top ? top.keys : []);
+    SETTING_CATEGORIES.forEach((cat) => {
+      const rows = Object.entries(SETTINGS).filter(([key, m]) => m.cat === cat && !inTop.has(key));
+      if (!rows.length) return;
+      const det = document.createElement("details"); det.className = "sub"; det.open = !top;   // flat where there is no top group
+      const sm = document.createElement("summary"); sm.textContent = `${cat} (${rows.length})`; det.appendChild(sm);
+      rows.forEach(([key, m]) => det.appendChild(settingRow(key, m)));
+      box.appendChild(det);
     });
   }
   Object.entries(cfg).forEach(([key, v]) => { const m = SETTINGS[key]; const ctl = $("cfg-" + key); if (ctl && m && document.activeElement !== ctl) ctl.value = scaleOut(m.kind, v); });

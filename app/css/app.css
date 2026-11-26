@@ -228,3 +228,22 @@ body.driving { position: fixed; inset: 0; overflow: hidden; }          /* no pag
   .x2-drive .drive-aux.x2-aux { padding-bottom: 6px; }
   .vstick.x2-h .vstick-knob, .vstick.x2-h .vstick-fill { height: 84px; margin-top: -42px; }
 }
+
+/* X2 machine card: e-stop on top, side A and side B as columns, trailer in its own section */
+.x2-sides { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 6px 0; }
+.x2-side { background: var(--key-bg); border-radius: 8px; padding: 4px 8px 6px; min-width: 0; }
+.x2-side .row { padding: 3px 0; font-size: 13px; }
+.x2-side .row b { text-align: right; }
+.x2-side-h { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 4px 0 2px; }
+.x2-estop-row b { letter-spacing: .04em; }
+@media (max-width: 360px) { .x2-sides { grid-template-columns: 1fr; } }
+
+/* advanced lists: chips grouped by what they belong to; collapsible sub-sections */
+.chip-group { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0; }
+.chip-group > em { font-style: normal; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); min-width: 76px; }
+details.sub { border-top: 1px solid var(--line); padding: 2px 0; }
+details.sub > summary { list-style: none; cursor: pointer; padding: 8px 0; font-size: 12px; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--accent); font-weight: 600; display: flex; gap: 6px; align-items: center; }
+details.sub > summary::-webkit-details-marker { display: none; }
+details.sub > summary::before { content: "\25B8"; font-size: 11px; transition: transform .15s; }
+details.sub[open] > summary::before { transform: rotate(90deg); }

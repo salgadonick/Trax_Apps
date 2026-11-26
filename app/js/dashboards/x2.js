@@ -24,7 +24,7 @@
 // =============================================================================
 import { TLM_FIELDS, DRV_FIELDS, FIELD_CATEGORIES, INPUT_NAMES, OUTPUT_NAMES, INPUT_LABELS, OUTPUT_LABELS,
          DIR_NAMES, J20_NAMES, SRC_NAMES, CTL_NAMES, LINK_NAMES, PID_NAMES, TRAILER_NAMES, STATE_TEXT, CHEM, BTN,
-         faultTitle, tapsPlausible } from "../protocol/x2-v1.js";
+         faultTitle, tapsPlausible, READING_GROUPS, INPUT_GROUPS, OUTPUT_GROUPS } from "../protocol/x2-v1.js";
 
 export const id = "x2";
 
@@ -274,13 +274,14 @@ export function render(d) {
 
   // ---- battery ----
   const k = chem();
-  iSmooth = iSmooth === null ? d.i_board : iSmooth + 0.25 * (d.i_board - iSmooth);
+  if (d.i_board >= 0) iSmooth = iSmooth === null ? d.i_board : iSmooth + 0.25 * (d.i_board - iSmooth);
   const soc = d.soc >= 0 ? d.soc : null;
   el("batt-type").textContent = cfg.batt_ah ? ((cfg.batt_series ?? 3) === 1 ? `36 V ${cfg.batt_ah} Ah ${k.name}` : `3 × 12 V ${cfg.batt_ah} Ah ${k.name}`) : "";
   el("soc").textContent = soc === null ? "—" : soc.toFixed(0);
   const sb = el("socbar"); sb.style.width = (soc ?? 0) + "%"; sb.className = "bar-fill " + socClass(soc ?? 100);
   el("v36").textContent = d.v36.toFixed(2) + " V";
   const taps = (cfg.batt_series ?? 3) >= 2 && tapsPlausible(d.v12, d.v24, d.v36);
+  el("units").hidden = !taps;                     // taps not wired (or one battery): nothing per battery to show
   [["b1", d.b1], ["b2", d.b2], ["b3", d.b3]].forEach(([n, v]) => {
     const bar = el(n + "bar");
     if (!taps) { el(n).textContent = "—"; bar.style.width = "0"; return; }
@@ -289,7 +290,11 @@ export function render(d) {
     bar.style.width = (f * 100) + "%";
     bar.style.background = f < 0.15 ? "var(--bad)" : f < 0.35 ? "var(--warn)" : "var(--ok)";
   });
-  el("i-board").textContent = iSmooth < 1 ? "< 1 A" : iSmooth.toFixed(1) + " A";
+  // Machine current: the pack current through the external Kelvin-tapped shunt
+  // upstream of both contactors. -1 = no shunt fitted (CFG i_board_uohm 0): hidden.
+  const noShunt = d.i_board < 0;
+  el("i-board-row").hidden = noShunt;
+  if (!noShunt && iSmooth !== null) el("i-board").textContent = iSmooth < 1 ? "< 1 A" : iSmooth.toFixed(1) + " A";
   const hasTemp = d.temp > -90;
   el("temp-row").hidden = !hasTemp;
   if (hasTemp) el("temp").textContent = `${d.temp.toFixed(0)} °C`;
@@ -305,11 +310,12 @@ export function render(d) {
   const mcText = (bit, j20) => !(mask & bit) ? "not fitted" : (J20_NAMES[j20] || "?");
   el("mc-a").textContent = mcText(1, d.j20a); el("mc-a").className = (mask & 1) && d.j20a === 2 && d.outputs.ksi ? "bad" : "";
   el("mc-b").textContent = mcText(2, d.j20b); el("mc-b").className = (mask & 2) && d.j20b === 2 && d.outputs.ksi ? "bad" : "";
+  // Each side in its own column: controller, contactor (power relay), motor brake.
   const brake = (n) => d.inputsValid[n] ? (d.inputs[n] ? "released" : "engaged") : "—";
-  el("brakes").textContent = `A ${brake("brake_a")} · B ${brake("brake_b")}`;
-  const relay = (on, cur) => on ? (cur ? "on" : "on, no coil current") : "off";
-  el("relays").textContent = `A ${relay(d.outputs.relay_a, d.inputs.relay_i_a)} · B ${relay(d.outputs.relay_b, d.inputs.relay_i_b)}`;
-  el("relays").className = (d.outputs.relay_a && !d.inputs.relay_i_a) || (d.outputs.relay_b && !d.inputs.relay_i_b) ? "bad" : "";
+  const relay = (on, cur) => on ? (cur ? "closed" : "closed, no coil current") : "open";
+  el("brake-a").textContent = brake("brake_a"); el("brake-b").textContent = brake("brake_b");
+  el("relay-a").textContent = relay(d.outputs.relay_a, d.inputs.relay_i_a); el("relay-a").className = d.outputs.relay_a && !d.inputs.relay_i_a ? "bad" : "";
+  el("relay-b").textContent = relay(d.outputs.relay_b, d.inputs.relay_i_b); el("relay-b").className = d.outputs.relay_b && !d.inputs.relay_i_b ? "bad" : "";
   el("estop").textContent = !d.inputsValid.estop_open ? "—" : d.inputs.estop_open ? "OPEN" : "closed";
   el("estop").className = d.inputsValid.estop_open && d.inputs.estop_open ? "bad" : "";
   el("tb").textContent = cfg.tb_enable === 0 ? "disabled" : d.outputs.tb_bus ? `${d.tb_pct} %  ·  ${d.i_tb.toFixed(1)} A` : "off";
@@ -379,10 +385,23 @@ export function onData(kind, d) {
 // ---------------------------------------------------------------- advanced view
 function renderAdvanced() {
   const d = last; if (!d) return;
-  const inp = el("inputs"); inp.replaceChildren();
-  INPUT_NAMES.forEach((n) => { const c = document.createElement("span"); c.className = "chip" + (d.inputs[n] ? " on" : "") + (d.inputsValid[n] ? "" : " inv"); c.textContent = INPUT_LABELS[n]; c.title = d.inputsValid[n] ? "" : "not readable right now"; inp.appendChild(c); });
-  const out = el("outputs"); out.replaceChildren();
-  OUTPUT_NAMES.forEach((n) => { const c = document.createElement("span"); c.className = "chip" + (d.outputs[n] ? " on" : ""); c.textContent = OUTPUT_LABELS[n]; out.appendChild(c); });
+  // Chips grouped by what they belong to (INPUT_GROUPS / OUTPUT_GROUPS).
+  const chipGroups = (box, groups, labels, on, valid) => {
+    box.replaceChildren();
+    groups.forEach(([title, names]) => {
+      const g = document.createElement("div"); g.className = "chip-group";
+      const t = document.createElement("em"); t.textContent = title; g.appendChild(t);
+      names.forEach((n) => {
+        const c = document.createElement("span"); const inv = valid && !valid(n);
+        c.className = "chip" + (on(n) ? " on" : "") + (inv ? " inv" : ""); c.textContent = labels[n];
+        if (inv) c.title = "not readable (its supply is off)";
+        g.appendChild(c);
+      });
+      box.appendChild(g);
+    });
+  };
+  chipGroups(el("inputs"), INPUT_GROUPS, INPUT_LABELS, (n) => d.inputs[n], (n) => d.inputsValid[n]);
+  chipGroups(el("outputs"), OUTPUT_GROUPS, OUTPUT_LABELS, (n) => d.outputs[n], null);
   const bt = el("btns"); bt.replaceChildren();
   [["SW0", BTN.sw0], ["SW1", BTN.sw1], ["Lift 2 (BTN0)", BTN.btn0], ["Lower 2 (BTN1)", BTN.btn1], ["Lift 1 (BTN2)", BTN.btn2], ["Lower 1 (BTN3)", BTN.btn3]]
     .forEach(([t, bit]) => { const c = document.createElement("span"); c.className = "chip" + (drv && (drv.btns & bit) ? " on" : ""); c.textContent = t; bt.appendChild(c); });
@@ -390,19 +409,25 @@ function renderAdvanced() {
   const box = el("fields");
   const all = [...TLM_FIELDS.map((f) => ["t", ...f]), ...DRV_FIELDS.map((f) => ["d", ...f])];
   if (!box.children.length) {
-    FIELD_CATEGORIES.forEach((cat) => {
-      const rows = all.filter((f) => f[5] === cat && !["in", "valid", "out"].includes(f[1]));
-      if (!rows.length) return;
-      const h = document.createElement("div"); h.className = "cat-h"; h.textContent = cat; box.appendChild(h);
-      const t = document.createElement("table"); const tb = document.createElement("tbody"); t.appendChild(tb);
-      rows.forEach(([src, key, , label, unit]) => { const tr = document.createElement("tr"); tr.innerHTML = `<td>${label}</td><td class="v" data-k="${src}:${key}"></td><td class="muted">${unit}</td>`; tb.appendChild(tr); });
-      const w = document.createElement("div"); w.className = "tablewrap"; w.appendChild(t); box.appendChild(w);
+    // One collapsible section per READING_GROUPS entry, its categories as tables inside.
+    READING_GROUPS.forEach(([title, cats], gi) => {
+      const det = document.createElement("details"); det.className = "sub"; det.open = gi === 0;
+      const sm = document.createElement("summary"); sm.textContent = title; det.appendChild(sm);
+      cats.forEach((cat) => {
+        const rows = all.filter((f) => f[5] === cat && !["in", "valid", "out"].includes(f[1]));
+        if (!rows.length) return;
+        const h = document.createElement("div"); h.className = "cat-h"; h.textContent = cat; det.appendChild(h);
+        const t = document.createElement("table"); const tb = document.createElement("tbody"); t.appendChild(tb);
+        rows.forEach(([src, key, , label, unit]) => { const tr = document.createElement("tr"); tr.innerHTML = `<td>${label}</td><td class="v" data-k="${src}:${key}"></td><td class="muted">${unit}</td>`; tb.appendChild(tr); });
+        const w = document.createElement("div"); w.className = "tablewrap"; w.appendChild(t); det.appendChild(w);
+      });
+      box.appendChild(det);
     });
   }
   const fmt = {
     "t:fault": (v) => v ? `${v} — ${faultTitle(v)}` : "none", "t:src": (v) => SRC_NAMES[v] || v, "t:ctl": (v) => CTL_NAMES[v] || v,
     "t:link": (v) => LINK_NAMES[v] || v, "t:j20a": (v) => J20_NAMES[v] || v, "t:j20b": (v) => J20_NAMES[v] || v,
-    "t:temp": (v) => v <= -99 ? "no sensor" : v.toFixed(1), "t:soc": (v) => v < 0 ? "unknown" : v.toFixed(1), "t:estop_l": (v) => v ? "yes" : "no",
+    "t:i_board": (v) => v < 0 ? "no shunt fitted" : v.toFixed(2), "t:temp": (v) => v <= -99 ? "no sensor" : v.toFixed(1), "t:soc": (v) => v < 0 ? "unknown" : v.toFixed(1), "t:estop_l": (v) => v ? "yes" : "no",
     "t:up": (v) => `${Math.floor(v / 60)} min ${v % 60} s`, "t:sleep": (v) => v ? `${Math.floor(v / 60)} min ${v % 60} s` : "disabled",
     "t:tb_st": (v) => TRAILER_NAMES[v] || v, "t:kt_l": (v) => v < -0.9 ? "no reading" : v.toFixed(2), "t:kt_r": (v) => v < -0.9 ? "no reading" : v.toFixed(2),
     "d:cmd_mode": (v) => v ? "tank (left track / right track)" : "RC car (drive / rotation)", "d:btns": (v) => "0x" + v.toString(16),
