@@ -13,7 +13,8 @@
 export const TLM_VERSION = 1;
 export const DRV_VERSION = 1;
 export const EVT_VERSION = 1;
-export const QUIET_KINDS = ["drv"];
+export const QUIET_KINDS = ["drv", "fdef"];
+export const FAULTDEFS = true;      // the unit lists its fault codes on request (FAULTDEFS -> FDEF rows)
 
 // [key, type, label, unit, category] — order == wire order after "TLM,<ver>,<seq>,"
 export const TLM_FIELDS = [
@@ -114,6 +115,11 @@ export const FAULTS = {
   4:  ["RAMP_TIMEOUT_AT_START", "Motor controller A not powering up", "No pre-charge seen on controller A's bus after key-on. Check the controller connections.", false],
   29: ["RAMP_TIMEOUT_AT_START_B", "Motor controller B not powering up", "No pre-charge seen on controller B's bus after key-on. Check the controller connections.", false],
   5:  ["THROTTLE_NONZERO_AT_BOOT", "Remote not at zero at start-up", "The radio remote's throttle was not at zero the first time the unit read it after starting: a stick or lever was being held, a Kar-Tech lever wire is open or shorted (an open wire reads about 0.44 V), or the control does not rest at zero. The unit will not run because the remote's zero cannot be established. Let go of the controls, check the lever wiring and that the controls rest at centre, then Restart.", false],
+  // Tiller-only codes (reserved here, never raised by x2_receive): named so a shared table stays complete.
+  6:  ["DIR_NONZERO_AT_BOOT", "Direction selected at start", "A direction was selected when the unit powered up (tiller units only).", false],
+  7:  ["THROTTLE_STALE", "Throttle signal lost", "The throttle signal stopped updating while running (tiller units only).", false],
+  8:  ["DIR_BOTH", "Both directions selected", "Forward and reverse were selected together (tiller units only).", false],
+  18: ["THROTTLE_OUT_OF_RANGE", "Throttle out of range", "The throttle signal is out of range: wiring (tiller units only).", false],
   9:  ["UNDERVOLT_PACK", "Low battery", "The battery is too low to run. Charge it.", false],
   10: ["TB_STUCK_ON", "Trailer brake stuck on", "Trailer-brake current with the brake commanded off.", false],
   11: ["I2C_LOST", "Internal I/O fault", "The internal I/O expanders stopped responding.", false],
@@ -154,7 +160,8 @@ export const FAULTS = {
   49: ["KARTECH_SIGNAL", "Kar-Tech left lever signal out of range", "The Kar-Tech LEFT lever signal is outside its valid band (open or shorted wire, or the receiver is off). Both tracks are held at rest until both levers read in range and are back at neutral.", true],
   53: ["KARTECH_SIGNAL_R", "Kar-Tech right lever signal out of range", "The Kar-Tech RIGHT lever signal is outside its valid band (open or shorted wire, or the receiver is off). Both tracks are held at rest until both levers read in range and are back at neutral.", true],
   51: ["TRACK_MISMATCH", "Tracks differ more than wear explains", "The drive assist's learned trim has reached its limit: one track is consistently slower than the other for the same throttle. Check for a dragging brake, a soft or worn tyre, or a weak motor on the slow side. The unit still drives.", true],
-  50: ["RADIO_ESTOP", "E-stop pressed on the radio remote", "A radio remote asserted its e-stop. The unit holds at rest until it is released and the controls are back at neutral.", true],
+  30: ["ESTOP_REMOTE", "E-stop pressed on the handheld", "The Trax handheld's e-stop was pressed. The unit stopped and holds in FAULT, like the hard-wired e-stop. Release the e-stop on the handheld, then Restart (or turn the unit off and on).", false],
+  50: ["RADIO_ESTOP", "Kar-Tech remote stopped", "The Kar-Tech receiver's ready line dropped: the remote's e-stop was pressed or the remote went off. The unit holds at rest until the Kar-Tech remote is back up (power-cycle it) and the levers are at neutral. Not a fault: no Restart needed.", true],
 };
 
 // key -> {label, cat, unit, kind, help, enum?|values?}   kind: int | bool | enum | enumv | x10 | x100 | mv
@@ -262,11 +269,16 @@ export const STATE_TEXT = {
 };
 
 const f = (code) => FAULTS[code] || [`FAULT_${code}`, `Fault ${code}`, `Unknown fault ${code}`, false];
+const humanName = (name) => name.toLowerCase().replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+// A code this app version predates, named by the firmware (FAULTDEFS reply or a
+// stored-fault row): title from the name, text says to update. Never "Unknown fault".
+export function learnFault(code, name, warn) {
+  if (!FAULTS[code] && name) FAULTS[code] = [name, humanName(name),
+    `${warn ? "Warning" : "Fault"} ${code} (${name}): this app version has no description for it. Update the app.`, !!warn];
+}
 // Stored-fault row: title / text from the table, or from the firmware's own
 // name when this app version does not know the code (never "Unknown fault").
-const fltTitleText = (code, name) => FAULTS[code] ? [faultTitle(code), faultText(code)]
-  : [name ? name.toLowerCase().replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()) : `Fault ${code}`,
-     `Fault ${code}${name ? " (" + name + ")" : ""}: this app version has no description for it. Update the app.`];
+const fltTitleText = (code, name) => { learnFault(code, name, code >= 32); return [faultTitle(code), faultText(code)]; };
 export function faultName(code)  { return f(code)[0]; }
 export function faultTitle(code) { return f(code)[1]; }
 export function faultText(code)  { return f(code)[2]; }
@@ -329,6 +341,7 @@ export function parseLine(line) {
       case "FLT": { const [title, text] = fltTitleText(+p[2], p[3]);
         return { kind: "flt", data: { i: +p[1], code: +p[2], name: p[3], boot: +p[4], uptime: +p[5],
                                        vpack: +p[6], detail: +p[7], title, text } }; }
+      case "FDEF": learnFault(+p[1], p[2], p[3] === "1"); return { kind: "fdef", data: { code: +p[1], name: p[2], warn: p[3] === "1" } };
       case "ACK": return { kind: "ack", data: { what: p[1], args: p.slice(2) } };
       case "LINK": return { kind: "link", data: { bonded: p[1] === "1", hasBond: p[2] === "1", pairing: p[3] === "1" } };
       case "ERR": return { kind: "err", data: { what: p[1], args: p.slice(2), reason: p.slice(1).join(",") } };

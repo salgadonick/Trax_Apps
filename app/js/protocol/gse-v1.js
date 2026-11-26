@@ -167,11 +167,16 @@ export const STATE_TEXT = {
 };
 
 const f = (code) => FAULTS[code] || [`FAULT_${code}`, `Fault ${code}`, `Unknown fault ${code}`, false];
+const humanName = (name) => name.toLowerCase().replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+// A code this app version predates, named by the firmware (FAULTDEFS reply or a
+// stored-fault row): title from the name, text says to update. Never "Unknown fault".
+export function learnFault(code, name, warn) {
+  if (!FAULTS[code] && name) FAULTS[code] = [name, humanName(name),
+    `${warn ? "Warning" : "Fault"} ${code} (${name}): this app version has no description for it. Update the app.`, !!warn];
+}
 // Stored-fault row: title / text from the table, or from the firmware's own
 // name when this app version does not know the code (never "Unknown fault").
-const fltTitleText = (code, name) => FAULTS[code] ? [faultTitle(code), faultText(code)]
-  : [name ? name.toLowerCase().replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()) : `Fault ${code}`,
-     `Fault ${code}${name ? " (" + name + ")" : ""}: this app version has no description for it. Update the app.`];
+const fltTitleText = (code, name) => { learnFault(code, name, code >= 32); return [faultTitle(code), faultText(code)]; };
 export function faultName(code)  { return f(code)[0]; }
 export function faultTitle(code) { return f(code)[1]; }
 export function faultText(code)  { return f(code)[2]; }
@@ -243,6 +248,7 @@ export function parseLine(line) {
       case "FLT": { const [title, text] = fltTitleText(+p[2], p[3]);
         return { kind: "flt", data: { i: +p[1], code: +p[2], name: p[3], boot: +p[4], uptime: +p[5],
                                        vpack: +p[6], detail: +p[7], title, text } }; }
+      case "FDEF": learnFault(+p[1], p[2], p[3] === "1"); return { kind: "fdef", data: { code: +p[1], name: p[2], warn: p[3] === "1" } };
       case "ACK": return { kind: "ack", data: { what: p[1], args: p.slice(2) } };
       case "LINK": return { kind: "link", data: { bonded: p[1] === "1", hasBond: p[2] === "1", pairing: p[3] === "1" } };
       case "ERR": return { kind: "err", data: { what: p[1], args: p.slice(2), reason: p.slice(1).join(",") } };
