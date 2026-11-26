@@ -346,10 +346,11 @@ export function parseLine(line) {
       // AUTH,<token>: the unit minted this device its app-pairing token (it
       // just won a re-pair search); the app stores and replays it on connect.
       case "AUTH": return { kind: "auth", data: { token: p[1] } };
-      // LINK,<secure>,<bond_stored>,<window_open>,<authorized> — the 4th field
-      // (this connection holds control rights from the triple-press re-pair)
-      // is absent on older firmware, which only grants rights by bonding.
-      case "LINK": return { kind: "link", data: { bonded: p[1] === "1", hasBond: p[2] === "1", pairing: p[3] === "1", authorized: p[4] === "1" } };
+      // LINK,<secure>,<bond_stored>,<window_open>,<control_ok> — the 4th
+      // field (this connection may use REMOTE/RC; current firmware gates
+      // control with the arm press, so it is always 1 over BLE) is absent on
+      // older firmware, which gated control by bonding: null there.
+      case "LINK": return { kind: "link", data: { bonded: p[1] === "1", hasBond: p[2] === "1", pairing: p[3] === "1", authorized: p.length > 4 ? p[4] === "1" : null } };
       case "ERR": return { kind: "err", data: { what: p[1], args: p.slice(2), reason: p.slice(1).join(",") } };
     }
   } catch (e) {

@@ -51,6 +51,7 @@ const ctx = { $, send, sendRaw, cfg, addEvent, badge, isAdvanced: () => advanced
 // a client that was just dropped does not steal the slot straight back.
 const BLE_SAVE_KEY = "trax.ble";
 let bleHoldUntil = 0, bleRetryTimer = 0, bleRetryDeadline = 0;
+let bleManualOff = false;   // the user tapped Disconnect (handing the unit to another device): no auto re-link until they tap Bluetooth again
 ctx.bleHold = (ms) => { bleHoldUntil = Math.max(bleHoldUntil, Date.now() + ms); };
 function bleSaved()  { try { return JSON.parse(localStorage.getItem(BLE_SAVE_KEY) || "null"); } catch (e) { return null; } }
 function bleRemember(id, name) { try { localStorage.setItem(BLE_SAVE_KEY, JSON.stringify({ id, name })); } catch (e) {} }
@@ -63,7 +64,7 @@ async function bleSilentConnect() {
   catch (e) { consoleLine("BLE auto-link: " + e.message); return false; }
 }
 function bleScheduleRetry() {
-  if (!bleSaved() || !canSilentReconnect()) return;
+  if (bleManualOff || !bleSaved() || !canSilentReconnect()) return;
   bleRetryDeadline = Date.now() + 10 * 60 * 1000;    // give up after 10 min
   bleStopRetry();
   let busy = false;
@@ -338,8 +339,9 @@ function attach(s, label) {
   s.onConn = ({ link, kind, name }) => {
     setLink(link, name || label); if (dash && dash.onLink) dash.onLink(link); if (link) onConnected(s); renderIdentity();
     if (kind === "ble") {
+      $("btn-ble-off").hidden = !link;
       if (link) { bleStopRetry(); if (s.deviceId) bleRemember(s.deviceId, name); }
-      else bleScheduleRetry();   // silent re-link; held off during a re-pair search
+      else bleScheduleRetry();   // silent re-link (not after a manual Disconnect)
     }
   };
   s.onMeta = (m) => {
@@ -357,7 +359,7 @@ function attachBle() {
 }
 $("btn-ble").onclick = async () => {
   if (!isWebBluetoothSupported()) { alert("Web Bluetooth is not available in this browser. On iPhone use a WebBLE browser such as Bluefy; on desktop use Chrome or Edge."); return; }
-  bleHoldUntil = 0;   // an explicit tap overrides a re-pair hold: the user wants THIS device connected now
+  bleHoldUntil = 0; bleManualOff = false;   // an explicit tap means: this device, now
   attachBle();
   try { await src.connect(); } catch (e) {
     consoleLine("BLE: " + e.message, "err"); setLink(false);
@@ -367,6 +369,13 @@ $("btn-ble").onclick = async () => {
   }
 };
 function showSimButtons() { document.querySelectorAll(".sim").forEach((b) => { if (!b.closest("#sim-controls")) b.hidden = !(advanced && srcKind === "sim"); }); }
+$("btn-ble-off").onclick = () => {
+  // Hand the unit to another device: drop the link and stay away until the
+  // user taps Bluetooth again (auto re-link would steal the slot back).
+  bleManualOff = true; bleStopRetry();
+  if (src && srcKind === "ble") { try { src.disconnect(); } catch (e) {} }
+  $("btn-ble-off").hidden = true;
+};
 $("btn-adv").onclick = () => { advanced = !advanced; $("advanced").hidden = !advanced; $("btn-adv").setAttribute("aria-pressed", advanced); showSimButtons(); try { localStorage.setItem("gse.adv", advanced ? "1" : "0"); } catch (e) {} if (advanced) { renderSettings(); if (dash && dash.onAdvanced) dash.onAdvanced(true); } };
 $("btn-faults").onclick = requestFaults;
 $("btn-faults-clr").onclick = () => send("FAULTS,CLR");

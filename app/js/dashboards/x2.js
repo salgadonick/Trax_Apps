@@ -117,14 +117,21 @@ function onCfgEvent(data) {
 
 // ---------------------------------------------------------------- link / errors
 let link = null;
+// Current firmware carries no link-identity gate: any connected device may
+// request control, and the arm press (power button) is the safety layer —
+// the LINK line's 4th field says so (authorized true). The banner texts only
+// remain for OLD firmware (4th field absent: control was gated by bonding).
 const LINK_TEXT = {
-  unauthorized: "Connected — viewing only. To drive from this device: triple-press the unit's power button. The unit drops this connection and searches for its new pair for 60 s; this app reconnects by itself and takes control.",
-  pairing:      "The unit is searching for its pair — the next device to connect takes control.",
+  occupied: "This unit is paired to another phone (old firmware). Triple-press the unit's power button to open pairing, connect again, request control and accept the pairing prompt.",
+  unpaired: "This unit's firmware gates control by Bluetooth pairing (old firmware). Triple-press the unit's power button to open pairing (60 s), then request control and accept the pairing prompt.",
+  pairing:  "Pairing window open: request control now and accept the pairing prompt.",
 };
-// authorized: this connection holds control rights from the re-pair gesture.
-// bonded: an encrypted, bonded link (also carries rights; older firmware's
-// only path). Anything else connected is a viewer.
-function linkState() { if (!link || link.authorized || link.bonded) return "ok"; if (link.pairing) return "pairing"; return "unauthorized"; }
+function linkState() {
+  if (!link || link.authorized !== null) return "ok";                    // current firmware: connection = may request
+  if (link.bonded) return "ok";                                          // old firmware, bonded
+  if (link.pairing) return "pairing";
+  return link.hasBond ? "occupied" : "unpaired";
+}
 function renderLinkStatus() {
   const p = el("remote-link"); if (!p) return;
   const st = linkState();
@@ -204,28 +211,10 @@ export function onEvent(data) {
     return true;
   }
   if (data.kind === "START") { ctx.addEvent("START", `Controller ${data.b || ""}: ${data.a}`); return true; }
-  if (data.kind === "BLE" && (data.a === "pair_search" || data.a === "pair_found")) {
-    if (data.a === "pair_search") {
-      // The unit is about to drop this connection and search for its new
-      // pair. If THIS device held control, it is being swapped away: stay
-      // disconnected for the whole window so the new device can take the
-      // slot. A viewer is most likely the device the re-pair is FOR:
-      // reconnect as soon as the drop lands and become the pair.
-      const mine = link && (link.authorized || link.bonded);
-      if (ctx.bleHold) ctx.bleHold(mine ? 65000 : 2000);
-      const text = mine
-        ? "Re-pair started at the unit: another device is taking control. This connection will drop and the app stays away while the unit searches (60 s)."
-        : "Re-pair started at the unit: this connection drops for a moment, then the app reconnects and takes control.";
-      ctx.addEvent("BLE", text); remoteMsg(text);
-    } else {
-      ctx.addEvent("BLE", "The unit found its new pair."); remoteMsg("");
-    }
-    return true;
-  }
   if (data.kind === "PWR" && data.a.startsWith("pairing")) {
-    ctx.addEvent("PWR", { pairing_open: "Pair search open (60 s): the next device to connect takes control",
-                          pairing_closed: "Pair search closed",
-                          pairing_cancelled: "Pair search cancelled" }[data.a] || data.a);
+    // Old firmware only: its Bluetooth bonding window (current firmware
+    // gates control with the arm press and never opens one).
+    ctx.addEvent("PWR", data.a === "pairing_open" ? "Bluetooth pairing window open — pair your phone now (60 s)" : "Bluetooth pairing window closed");
     if (data.a === "pairing_open") remoteMsg("");
     return true;
   }
@@ -658,7 +647,7 @@ function wire() {
     remoteMsg("");
     if (!last) { remoteMsg("Not connected to a unit."); return; }
     const ls = linkState();
-    if (ls === "unauthorized") { remoteMsg(LINK_TEXT.unauthorized); return; }   // the LINK line already said no: explain, do not fail
+    if (ls === "occupied" || ls === "unpaired") { remoteMsg(LINK_TEXT[ls]); return; }   // old firmware already said no: explain, do not fail
     if (last.state !== "RUN") {
       remoteMsg(last.state === "FAULT" ? `The unit is stopped on a fault (${last.faultTitle || "fault"}). Restart it first.`
               : `The unit is not running (${STATE_TEXT[last.state] || last.state}).`);
