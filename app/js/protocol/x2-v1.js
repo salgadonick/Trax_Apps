@@ -343,7 +343,13 @@ export function parseLine(line) {
                                        vpack: +p[6], detail: +p[7], title, text } }; }
       case "FDEF": learnFault(+p[1], p[2], p[3] === "1"); return { kind: "fdef", data: { code: +p[1], name: p[2], warn: p[3] === "1" } };
       case "ACK": return { kind: "ack", data: { what: p[1], args: p.slice(2) } };
-      case "LINK": return { kind: "link", data: { bonded: p[1] === "1", hasBond: p[2] === "1", pairing: p[3] === "1" } };
+      // AUTH,<token>: the unit minted this device its app-pairing token (it
+      // just won a re-pair search); the app stores and replays it on connect.
+      case "AUTH": return { kind: "auth", data: { token: p[1] } };
+      // LINK,<secure>,<bond_stored>,<window_open>,<authorized> — the 4th field
+      // (this connection holds control rights from the triple-press re-pair)
+      // is absent on older firmware, which only grants rights by bonding.
+      case "LINK": return { kind: "link", data: { bonded: p[1] === "1", hasBond: p[2] === "1", pairing: p[3] === "1", authorized: p[4] === "1" } };
       case "ERR": return { kind: "err", data: { what: p[1], args: p.slice(2), reason: p.slice(1).join(",") } };
     }
   } catch (e) {

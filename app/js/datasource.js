@@ -8,6 +8,7 @@
 import { WebBleTransport, isWebBluetoothSupported } from "./transport-webble.js";
 
 export { isWebBluetoothSupported };
+export function canSilentReconnect() { return WebBleTransport.canReconnect(); }
 
 class LineReassembler {
   constructor(onLine) { this._buf = ""; this._dec = new TextDecoder(); this._onLine = onLine; }
@@ -68,6 +69,13 @@ export class BleSource {
     await this._t.connect();            // must be inside a user gesture
     this.onConn({ link: true, kind: "ble", name: this._t.deviceName });
   }
+  // Silent reconnect to a previously granted unit (no chooser, no gesture).
+  async reconnect(id) {
+    await this._t.reconnectKnown(id);
+    this.onConn({ link: true, kind: "ble", name: this._t.deviceName });
+  }
+  get deviceId()   { return this._t.deviceId; }
+  get deviceName() { return this._t.deviceName; }
   send(text) { return this._t.send(this._enc.encode(text + "\n"), { latest: text.startsWith("RC,") }); }
   disconnect() { return this._t.disconnect(); }
 }

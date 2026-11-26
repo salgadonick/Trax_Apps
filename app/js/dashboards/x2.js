@@ -118,20 +118,24 @@ function onCfgEvent(data) {
 // ---------------------------------------------------------------- link / errors
 let link = null;
 const LINK_TEXT = {
-  occupied: "This unit is paired to another phone. To take over: triple-press the unit's power button. The unit will disconnect; connect again, request control and accept the pairing prompt.",
-  unpaired: "This phone is not paired with this unit yet. Triple-press the unit's power button to open pairing (60 s), then request control and accept the pairing prompt.",
-  pairing:  "Pairing window open: request control now and accept the pairing prompt.",
+  unauthorized: "Connected — viewing only. To drive from this device: triple-press the unit's power button. The unit drops this connection and searches for its new pair for 60 s; this app reconnects by itself and takes control.",
+  pairing:      "The unit is searching for its pair — the next device to connect takes control.",
 };
-function linkState() { if (!link || link.bonded) return "ok"; if (link.pairing) return "pairing"; return link.hasBond ? "occupied" : "unpaired"; }
+// authorized: this connection holds control rights from the re-pair gesture.
+// bonded: an encrypted, bonded link (also carries rights; older firmware's
+// only path). Anything else connected is a viewer.
+function linkState() { if (!link || link.authorized || link.bonded) return "ok"; if (link.pairing) return "pairing"; return "unauthorized"; }
 function renderLinkStatus() {
   const p = el("remote-link"); if (!p) return;
   const st = linkState();
   p.hidden = st === "ok"; p.textContent = LINK_TEXT[st] || "";
-  p.className = "drive-banner" + (st === "occupied" ? " bad" : "");
+  p.className = "drive-banner";
 }
 export function onLinkStatus(d, transport) { link = transport === "ble" ? d : null; renderLinkStatus(); if (linkState() !== "ok") remoteMsg(""); }
 
 const REMOTE_ERR = {
+  not_authorized: "This device is not authorized to drive. Triple-press the unit's power button: the unit drops this connection and searches for its new pair — the app reconnects by itself and takes control.",
+  // Older firmware (bond-based control) still answers with these two:
   not_bonded:  "This phone is not paired with the unit. Triple-press the unit's power button to open pairing (60 s). If the unit drops the connection at that moment, connect again. Then request control, accept the pairing prompt, and request once more.",
   occupied:    "This unit is paired to another phone. Triple-press the unit's power button to take over; the unit will disconnect. Connect again, request control and accept the pairing prompt.",
   not_run:     "The unit is not running yet.",
@@ -170,7 +174,7 @@ export function onError(data) {
   }
   if (data.what === "RC") {
     if (rc.armed) { stopRc(); if (!(last && (last.state === "FAULT" || last.estop_l))) closeDrive(); }
-    remoteMsg(data.args[0] === "not_bonded" ? REMOTE_ERR.not_bonded : "The unit is not under phone control. Request control again.");
+    remoteMsg(REMOTE_ERR[data.args[0]] || "The unit is not under phone control. Request control again.");
     return true;
   }
   if (data.what !== "REMOTE") return false;
@@ -200,7 +204,31 @@ export function onEvent(data) {
     return true;
   }
   if (data.kind === "START") { ctx.addEvent("START", `Controller ${data.b || ""}: ${data.a}`); return true; }
-  if (data.kind === "PWR" && data.a.startsWith("pairing")) { ctx.addEvent("PWR", data.a === "pairing_open" ? "Bluetooth pairing window open — pair your phone now (60 s)" : "Bluetooth pairing window closed"); if (data.a === "pairing_open") remoteMsg(""); return true; }
+  if (data.kind === "BLE" && (data.a === "pair_search" || data.a === "pair_found")) {
+    if (data.a === "pair_search") {
+      // The unit is about to drop this connection and search for its new
+      // pair. If THIS device held control, it is being swapped away: stay
+      // disconnected for the whole window so the new device can take the
+      // slot. A viewer is most likely the device the re-pair is FOR:
+      // reconnect as soon as the drop lands and become the pair.
+      const mine = link && (link.authorized || link.bonded);
+      if (ctx.bleHold) ctx.bleHold(mine ? 65000 : 2000);
+      const text = mine
+        ? "Re-pair started at the unit: another device is taking control. This connection will drop and the app stays away while the unit searches (60 s)."
+        : "Re-pair started at the unit: this connection drops for a moment, then the app reconnects and takes control.";
+      ctx.addEvent("BLE", text); remoteMsg(text);
+    } else {
+      ctx.addEvent("BLE", "The unit found its new pair."); remoteMsg("");
+    }
+    return true;
+  }
+  if (data.kind === "PWR" && data.a.startsWith("pairing")) {
+    ctx.addEvent("PWR", { pairing_open: "Pair search open (60 s): the next device to connect takes control",
+                          pairing_closed: "Pair search closed",
+                          pairing_cancelled: "Pair search cancelled" }[data.a] || data.a);
+    if (data.a === "pairing_open") remoteMsg("");
+    return true;
+  }
   return false;
 }
 
@@ -630,7 +658,7 @@ function wire() {
     remoteMsg("");
     if (!last) { remoteMsg("Not connected to a unit."); return; }
     const ls = linkState();
-    if (ls === "occupied" || ls === "unpaired") { remoteMsg(LINK_TEXT[ls]); return; }
+    if (ls === "unauthorized") { remoteMsg(LINK_TEXT.unauthorized); return; }   // the LINK line already said no: explain, do not fail
     if (last.state !== "RUN") {
       remoteMsg(last.state === "FAULT" ? `The unit is stopped on a fault (${last.faultTitle || "fault"}). Restart it first.`
               : `The unit is not running (${STATE_TEXT[last.state] || last.state}).`);

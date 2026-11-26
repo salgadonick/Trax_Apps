@@ -7,7 +7,7 @@
 // too old to send `ID` (backwards compatible).
 // =============================================================================
 import { PRODUCTS, UNKNOWN, parseId, identifyByName, displayName, sanitizeNick, units } from "./registry.js";
-import { BridgeSource, BleSource, isWebBluetoothSupported } from "./datasource.js";
+import { BridgeSource, BleSource, isWebBluetoothSupported, canSilentReconnect } from "./datasource.js";
 
 const $ = (id) => document.getElementById(id);
 let src = null, srcKind = "";
@@ -42,6 +42,41 @@ function consoleLine(text, cls) {
 const send = (t) => { if (src) { src.send(t); consoleLine("> " + t, "tx"); } };
 const sendRaw = (t) => { if (src) src.send(t); };          // high-rate frames: no console echo
 const ctx = { $, send, sendRaw, cfg, addEvent, badge, isAdvanced: () => advanced, srcKind: () => srcKind, get identity() { return identity; }, get proto() { return proto; } };
+
+// ---------------------------------------------------------------- BLE auto-link
+// Remember the last unit connected over Web Bluetooth and re-link silently:
+// on app open, and whenever the link drops (unit rebooting, out of range, or
+// dropping this client for a re-pair search). A dashboard can hold retries
+// off with ctx.bleHold(ms) — used while the unit searches for a NEW pair, so
+// a client that was just dropped does not steal the slot straight back.
+const BLE_SAVE_KEY = "trax.ble";
+let bleHoldUntil = 0, bleRetryTimer = 0, bleRetryDeadline = 0;
+ctx.bleHold = (ms) => { bleHoldUntil = Math.max(bleHoldUntil, Date.now() + ms); };
+function bleSaved()  { try { return JSON.parse(localStorage.getItem(BLE_SAVE_KEY) || "null"); } catch (e) { return null; } }
+function bleRemember(id, name) { try { localStorage.setItem(BLE_SAVE_KEY, JSON.stringify({ id, name })); } catch (e) {} }
+function bleStopRetry() { if (bleRetryTimer) { clearInterval(bleRetryTimer); bleRetryTimer = 0; } }
+async function bleSilentConnect() {
+  const saved = bleSaved();
+  if (!saved || !canSilentReconnect()) return false;
+  attachBle();
+  try { await src.reconnect(saved.id); return true; }
+  catch (e) { consoleLine("BLE auto-link: " + e.message); return false; }
+}
+function bleScheduleRetry() {
+  if (!bleSaved() || !canSilentReconnect()) return;
+  bleRetryDeadline = Date.now() + 10 * 60 * 1000;    // give up after 10 min
+  bleStopRetry();
+  let busy = false;
+  bleRetryTimer = setInterval(async () => {
+    if (srcKind !== "ble") { bleStopRetry(); return; } // user switched source
+    if (busy || Date.now() < bleHoldUntil) return;
+    if (Date.now() > bleRetryDeadline) { bleStopRetry(); return; }
+    busy = true;
+    const ok = await bleSilentConnect();
+    busy = false;
+    if (ok) bleStopRetry();
+  }, 3000);
+}
 
 // ---------------------------------------------------------------- identity / dashboards
 // data-dash key of a product's markup: "gse" for GSE-TH, "generic" for the fallback.
@@ -237,6 +272,15 @@ function onLine(line) {
     case "flt": faultRow(data); break;
     case "fdef": break;                         // already learned by the protocol module
     case "link": if (dash && dash.onLinkStatus) dash.onLinkStatus(data, srcKind); break;
+    case "auth":
+      // The unit minted this device its pairing token (it just won a re-pair
+      // search). Store it per unit; onConnected replays it on every reconnect
+      // so control comes back without another triple-press.
+      if (srcKind === "ble" && src && src.deviceId) {
+        try { localStorage.setItem("trax.auth." + src.deviceId, data.token); } catch (e) {}
+        addEvent("BLE", "This device is now the unit's paired controller — it re-authorizes automatically from now on.");
+      }
+      break;
     case "ack":
       if (data.what === "FAULTS" && data.args[0] === "CLR") $("faults").replaceChildren();
       // ACK,FAULTS,<n>,<boot>: an empty store never sends a row, so say so (the "Connect and refresh"
@@ -250,10 +294,17 @@ function onLine(line) {
       break;
     case "err":
       if (data.what === "CFGSET") { settingStatus(data.args[1], data.args[0] === "unknown_key" ? "unknown to this firmware — re-flash" : data.args[0].replace("_", " "), "bad"); addEvent("ERR", `Setting ${data.args[1]}: ${data.args[0]}`); }
-      if (data.what === "UNKNOWN" && (data.args[0] === "LINK" || data.args[0] === "FAULTDEFS")) break;   // older firmware: no link status / fault list
+      if (data.what === "UNKNOWN" && (data.args[0] === "LINK" || data.args[0] === "FAULTDEFS" || data.args[0] === "AUTH")) break;   // older firmware: no link status / fault list / app pairing
+      if (data.what === "AUTH") {
+        // Stale token: another device won a re-pair since. Forget it (stop
+        // replaying it); the link banner already explains viewing-only.
+        if (srcKind === "ble" && src && src.deviceId) { try { localStorage.removeItem("trax.auth." + src.deviceId); } catch (e) {} }
+        break;
+      }
       if (data.what === "UNKNOWN" && data.args[0] === "ID") { onIdentity({ ...identifyByName($("devname").textContent) || { product: 1, info: PRODUCTS[1] }, code: PRODUCTS[1].code, fw: "", serial: "", shortId: "", nick: "", tlmVersion: proto ? proto.TLM_VERSION : 0, guessed: true }); }
       else if (dash && dash.onError && dash.onError(data)) { /* shown by the dashboard where the operator is looking */ }
       else if ((data.what === "REMOTE" || data.what === "RC") && data.args[0] === "not_bonded") addEvent("ERR", "Remote: this phone is not paired with the unit. Triple-press the tiller power button to open pairing (60 s), accept the pairing prompt, then request control again.");
+      else if ((data.what === "REMOTE" || data.what === "RC") && data.args[0] === "not_authorized") addEvent("ERR", "Remote: this connection is not authorized to drive. Triple-press the unit's power button to re-pair control to this device.");
       else if (data.what === "REMOTE" || data.what === "RC") addEvent("ERR", `Remote: ${data.args.join(" ")}`); else addEvent("ERR", data.reason);
       break;
     case "unknown":
@@ -267,6 +318,13 @@ function onLine(line) {
 }
 function onConnected(s) {
   requestFaults(); s.send("CFGGET"); s.send("LINK");
+  // Replay this device's pairing token: the unit re-authorizes it for control
+  // without another triple-press (AUTH is only ever stored for a unit that
+  // minted one, so old firmware never sees the command).
+  if (srcKind === "ble" && s.deviceId) {
+    let t = null; try { t = localStorage.getItem("trax.auth." + s.deviceId); } catch (e) {}
+    if (t) s.send("AUTH," + t);
+  }
   if (!idRequested) { idRequested = true; idPendingUntil = performance.now() + 1500; s.send("ID"); }
 }
 
@@ -277,7 +335,13 @@ function attach(s, label) {
   src = s;
   s.onLine = onLine;
   s.onError = (m) => consoleLine("BLE: " + m, "err");
-  s.onConn = ({ link, kind, name }) => { setLink(link, name || label); if (dash && dash.onLink) dash.onLink(link); if (link) onConnected(s); renderIdentity(); };
+  s.onConn = ({ link, kind, name }) => {
+    setLink(link, name || label); if (dash && dash.onLink) dash.onLink(link); if (link) onConnected(s); renderIdentity();
+    if (kind === "ble") {
+      if (link) { bleStopRetry(); if (s.deviceId) bleRemember(s.deviceId, name); }
+      else bleScheduleRetry();   // silent re-link; held off during a re-pair search
+    }
+  };
   s.onMeta = (m) => {
     if (m.type === "conn") { srcKind = m.connected ? m.kind : ""; setLink(m.connected, m.connected ? `${m.kind}: ${m.name}` : "bridge"); if (dash && dash.onLink) dash.onLink(m.connected); $("sim-controls").hidden = m.kind !== "sim"; showSimButtons(); if (m.connected) onConnected(s); renderIdentity(); }
     if (m.type === "ports") { const sel = $("ports"); sel.replaceChildren(); m.ports.forEach((p) => { const o = document.createElement("option"); o.value = p.device; o.textContent = `${p.device} — ${p.desc}`; sel.appendChild(o); }); if (!m.ports.length) { const o = document.createElement("option"); o.textContent = "no serial ports"; sel.appendChild(o); } }
@@ -287,9 +351,14 @@ function attach(s, label) {
 }
 
 $("btn-bridge").onclick = () => { attach(new BridgeSource(), "bridge"); src.connect(); $("bridge-controls").hidden = false; };
+function attachBle() {
+  attach(new BleSource(), "BLE"); srcKind = "ble";
+  $("bridge-controls").hidden = true; $("sim-controls").hidden = true;
+}
 $("btn-ble").onclick = async () => {
   if (!isWebBluetoothSupported()) { alert("Web Bluetooth is not available in this browser. On iPhone use a WebBLE browser such as Bluefy; on desktop use Chrome or Edge."); return; }
-  attach(new BleSource(), "BLE"); srcKind = "ble"; $("bridge-controls").hidden = true; $("sim-controls").hidden = true;
+  bleHoldUntil = 0;   // an explicit tap overrides a re-pair hold: the user wants THIS device connected now
+  attachBle();
   try { await src.connect(); } catch (e) {
     consoleLine("BLE: " + e.message, "err"); setLink(false);
     // The unit forgot this phone (BONDS,CLR / re-flash) but the phone still holds the old key:
@@ -320,5 +389,16 @@ try { if (localStorage.getItem("gse.adv") === "1") $("btn-adv").click(); } catch
 // Served by the bridge on the laptop / LAN: connect to it. Hosted on the web
 // (the customer link, HTTPS): the unit is reached over Bluetooth only.
 const onLan = ["localhost", "127.0.0.1"].includes(location.hostname) || /^(10|192\.168|172\.(1[6-9]|2\d|3[01]))\./.test(location.hostname);
-if (location.protocol === "file:" || onLan) $("btn-bridge").click();
-else { $("btn-bridge").hidden = true; $("bridge-controls").hidden = true; $("connect-hint").hidden = false; }
+const viaBridge = location.protocol === "file:" || onLan;
+if (!viaBridge) { $("btn-bridge").hidden = true; $("bridge-controls").hidden = true; }
+// A unit this browser connected to before links again by itself (Web
+// Bluetooth permission persistence); otherwise the old behavior: the bridge
+// on the LAN, the connect hint when hosted.
+if (bleSaved() && canSilentReconnect()) {
+  bleSilentConnect().then((ok) => {
+    if (ok) return;
+    if (viaBridge) $("btn-bridge").click();
+    else $("connect-hint").hidden = false;
+  });
+} else if (viaBridge) $("btn-bridge").click();
+else $("connect-hint").hidden = false;

@@ -9,8 +9,11 @@
 // into createLineDataSource().
 //
 // Browser constraints (by design of Web Bluetooth):
-//   - connect() must be called from a user gesture (button click).
-//   - No silent auto-reconnect; the chooser appears each session.
+//   - connect() (the chooser) must be called from a user gesture.
+//   - reconnectKnown(id) needs no gesture: navigator.bluetooth.getDevices()
+//     returns the devices this origin was already granted, and gatt.connect()
+//     on one of them is allowed outside a gesture. Chrome/Edge with the
+//     permissions backend only; callers must treat it as best-effort.
 //   - Chrome/Edge only (desktop + Android). No Firefox/Safari/iOS.
 // =============================================================================
 
@@ -40,6 +43,7 @@ export class WebBleTransport {
   onError(cb)      { this._onError = cb; }
 
   get deviceName() { return this._device ? this._device.name : null; }
+  get deviceId()   { return this._device ? this._device.id : null; }
 
   async connect() {
     if (!isWebBluetoothSupported()) {
@@ -49,10 +53,34 @@ export class WebBleTransport {
     const device = await navigator.bluetooth.requestDevice({
       filters: [{ services: [NUS_SERVICE] }],
     });
+    await this._attachTo(device);
+  }
+
+  // Silent reconnect to a device this origin was already granted (no chooser,
+  // no gesture needed). Best-effort: throws when the browser lacks
+  // getDevices(), the grant is gone, or the unit is not advertising within
+  // the timeout.
+  static canReconnect() {
+    return isWebBluetoothSupported() && !!navigator.bluetooth.getDevices;
+  }
+  async reconnectKnown(id, timeoutMs = 12000) {
+    if (!WebBleTransport.canReconnect()) throw new Error("silent reconnect not supported in this browser");
+    const devices = await navigator.bluetooth.getDevices();
+    const device = devices.find((d) => d.id === id);
+    if (!device) throw new Error("the unit is no longer remembered by this browser");
+    // gatt.connect() on a permitted device waits for it to advertise; guard it
+    // so a powered-off unit does not hang the attempt forever.
+    const guard = setTimeout(() => { try { device.gatt.disconnect(); } catch (e) {} }, timeoutMs);
+    try { await this._attachTo(device); } finally { clearTimeout(guard); }
+  }
+
+  async _attachTo(device) {
+    // once: getDevices() hands back the SAME BluetoothDevice object across
+    // calls, so a plain listener would stack one copy per reconnect attempt.
     device.addEventListener("gattserverdisconnected", () => {
       this._rxChar = null; this._queue = []; this._latest = null;
       this._onDisconnect();
-    });
+    }, { once: true });
 
     const server = await device.gatt.connect();
     const service = await server.getPrimaryService(NUS_SERVICE);
